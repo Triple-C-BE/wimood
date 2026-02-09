@@ -9,7 +9,7 @@ from utils import (
     init_request_manager,
     format_seconds_to_human_readable
 )
-from integrations import WimoodAPI
+from integrations import WimoodAPI, ShopifyAPI, sync_products
 
 
 # --- Configuration & Setup ---
@@ -46,6 +46,7 @@ def run_wimood_sync():
         # Managers handle their own sub-logging
         REQUEST_MANAGER = init_request_manager(ENV)
         wimood_api = WimoodAPI(ENV, REQUEST_MANAGER)
+        shopify_api = ShopifyAPI(ENV, REQUEST_MANAGER)
 
     except Exception as e:
         LOGGER.error(f"Failed to initialize managers. Aborting sync: {e}")
@@ -61,54 +62,24 @@ def run_wimood_sync():
     except Exception as e:
         LOGGER.error(f"FATAL: Failed to fetch core data from Wimood API. Aborting sync: {e}")
         return
-#
-#     # 3. Enrich Data (Targeted Scraping - Only for missing/changed details)
-#     SYNC_CYCLE_LOG.info("Step 2: Enriching product details (Description, Images) with targeted scraping...")
-#
-#     # Get the latest sync map to determine what needs scraping
-#     sync_map = sync_manager.load_sync_map()
-#     products_to_sync = []
-#
-#     for product_data in wimood_core_products:
-#         product = Product.from_wimood_data(product_data)
-#
-#         # Check if product is new or needs detail refresh based on your sync_map logic
-#         needs_detail_scrape = sync_manager.needs_detail_scrape(product, sync_map)
-#
-#         if needs_detail_scrape:
-#             SYNC_CYCLE_LOG.debug(f"Scraping details for product ID: {product.source_id}")
-#             try:
-#                 # Assuming the API provides a product URL for the scraper
-#                 product_url = f"{WIMOOD_BASE_URL}/product/{product.source_id}"  # Adjust URL pattern as needed
-#                 details = detail_scraper.scrape_product_details(product_url)
-#                 product.update_details(details)  # Method to merge scraped data into the Product model
-#             except Exception as e:
-#                 SYNC_CYCLE_LOG.warning(
-#                     f"Failed to scrape details for {product.source_id}. Will try next cycle. Error: {e}")
-#
-#         products_to_sync.append(product)
-#
-#     SYNC_CYCLE_LOG.info("Detail enrichment complete.")
-#
-#     # 4. Sync with Shopify
-#     SYNC_CYCLE_LOG.info("Step 3: Starting synchronization with Shopify...")
-#
-#     # Get all products from Shopify that you own (e.g., matching a specific vendor tag)
-#     shopify_products_map = shopify_manager.get_synced_products_map(sync_map)
-#
-#     sync_results = shopify_manager.process_sync(
-#         source_products=products_to_sync,
-#         shopify_products_map=shopify_products_map,
-#         sync_manager=sync_manager
-#     )
-#
+
+    # Sync with Shopify
+    LOGGER.info("Starting synchronization with Shopify...")
+    try:
+        sync_results = sync_products(wimood_core_products, shopify_api)
+    except Exception as e:
+        LOGGER.error(f"FATAL: Failed to sync products to Shopify: {e}")
+        return
+
     # Finalize
     end_time = time.time()
     duration = end_time - start_time
 
-    #LOGGER.info(f"Products Created: {sync_results['created']}")
-    #LOGGER.info(f"Products Updated: {sync_results['updated']}")
-    #LOGGER.info(f"Products Deactivated: {sync_results['deactivated']}")
+    LOGGER.info(f"Products Created: {sync_results['created']}")
+    LOGGER.info(f"Products Updated: {sync_results['updated']}")
+    LOGGER.info(f"Products Deactivated: {sync_results['deactivated']}")
+    LOGGER.info(f"Products Skipped: {sync_results['skipped']}")
+    LOGGER.info(f"Errors: {sync_results['errors']}")
 
     LOGGER.info("--------------------------------------------------------------------")
     LOGGER.info(f"✅ SYNC COMPLETE | Duration: {duration:.2f} seconds")
