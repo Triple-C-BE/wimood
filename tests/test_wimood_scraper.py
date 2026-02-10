@@ -59,7 +59,7 @@ class TestWimoodScraper:
 
         assert len(result['images']) == 3
         assert result['images'][0].startswith('https://wimoodshop.nl')
-        assert '12345_1.jpg' in result['images'][0]
+        assert '12345_1' in result['images'][0]
 
     @patch('integrations.wimood_scraper.time.sleep')
     def test_extract_description(self, mock_sleep, sample_env, mock_request_manager,
@@ -123,9 +123,12 @@ class TestWimoodScraper:
 
     def test_images_limited_to_10(self, sample_env, mock_request_manager):
         from bs4 import BeautifulSoup
-        # Create HTML with 15 images
-        img_tags = ''.join(f'<img src="/images/shop/12345_{i}.jpg">' for i in range(15))
-        html = f'<html><body><div class="product-images">{img_tags}</div></body></html>'
+        # Create HTML with 15 Flickity slider images
+        slides = ''.join(
+            f'<div class="product-slider__slide" data-flickity-bg-lazyload="/images/shop/12345_{i}"></div>'
+            for i in range(15)
+        )
+        html = f'<html><body><div class="product-slider">{slides}</div></body></html>'
 
         scraper = self._make_scraper(sample_env, mock_request_manager)
         soup = BeautifulSoup(html, 'lxml')

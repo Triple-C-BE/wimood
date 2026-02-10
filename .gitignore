@@ -3,5 +3,6 @@ __pycache__/
 .env
 .venv/
 logs/
+data/
 .idea/
 CLAUDE.md

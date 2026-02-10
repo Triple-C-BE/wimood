@@ -47,6 +47,8 @@ class TestShopifyAPI:
         product_payload = payload['product']
         assert product_payload['title'] == 'Test Bureaustoel Deluxe'
         assert product_payload['vendor'] == 'TestBrand'
+        assert 'product_type' not in product_payload
+        assert 'tags' not in product_payload
         assert product_payload['variants'][0]['sku'] == 'WM-TEST-001'
         assert product_payload['variants'][0]['barcode'] == '8712345678901'
 
@@ -78,8 +80,8 @@ class TestShopifyAPI:
         product_payload = payload['product']
         assert 'body_html' in product_payload
         assert 'bureaustoel' in product_payload['body_html']
-        assert len(product_payload['images']) == 2
-        assert product_payload['images'][0]['src'].endswith('12345_1.jpg')
+        # local_images is empty in fixture, so no images in payload
+        assert 'images' not in product_payload
 
     def test_create_product_failure(self, sample_env, mock_request_manager, sample_wimood_product):
         mock_request_manager.request.return_value = None
@@ -88,15 +90,9 @@ class TestShopifyAPI:
         result = api.create_product(sample_wimood_product)
         assert result is None
 
-    def test_update_product_with_enriched_data(self, sample_env, mock_request_manager, sample_enriched_product):
-        # GET existing product
-        existing_resp = MagicMock()
-        existing_resp.json.return_value = {
-            'product': {'id': 99999, 'variants': [{'id': 88888}]}
-        }
-        existing_resp.headers = {}
-
-        # PUT update
+    def test_update_product_with_enriched_data(self, sample_env, mock_request_manager,
+                                               sample_enriched_product, sample_shopify_product):
+        # PUT update (single call now — no separate GET or variant PUT)
         update_resp = MagicMock()
         update_resp.status_code = 200
         update_resp.json.return_value = {
@@ -104,11 +100,6 @@ class TestShopifyAPI:
         }
         update_resp.text = '{}'
         update_resp.headers = {}
-
-        # PUT variant
-        variant_resp = MagicMock()
-        variant_resp.status_code = 200
-        variant_resp.headers = {}
 
         # GET locations + POST inventory
         locations_resp = MagicMock()
@@ -119,21 +110,24 @@ class TestShopifyAPI:
         inv_resp.status_code = 200
         inv_resp.headers = {}
 
-        mock_request_manager.request.side_effect = [
-            existing_resp, update_resp, variant_resp, locations_resp, inv_resp
-        ]
+        mock_request_manager.request.side_effect = [update_resp, locations_resp, inv_resp]
 
         api = self._make_api(sample_env, mock_request_manager)
-        result = api.update_product(99999, sample_enriched_product)
+        result = api.update_product(99999, sample_enriched_product,
+                                    existing_shopify_product=sample_shopify_product)
 
         assert result is not None
 
-        # The update call is the second one
-        update_call = mock_request_manager.request.call_args_list[1]
+        # The update call is the first one (no more GET fetch)
+        update_call = mock_request_manager.request.call_args_list[0]
         payload = update_call.kwargs.get('json') or update_call[1].get('json')
         product_payload = payload['product']
+        assert product_payload['vendor'] == 'TestBrand'
         assert 'body_html' in product_payload
-        assert len(product_payload['images']) == 2
+        # Variant price is included inline
+        assert product_payload['variants'][0]['price'] == '149.99'
+        # local_images is empty in fixture, so no images in payload
+        assert 'images' not in product_payload
 
     def test_location_id_cached(self, sample_env, mock_request_manager):
         api = self._make_api(sample_env, mock_request_manager)

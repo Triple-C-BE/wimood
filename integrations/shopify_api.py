@@ -3,6 +3,8 @@ import logging
 import time
 from typing import Dict, List, Optional
 
+from utils.image_downloader import ImageDownloader
+
 LOGGER = logging.getLogger('shopify_api')
 
 
@@ -14,11 +16,12 @@ class ShopifyAPI:
     API_VERSION = '2023-04'
     RATE_LIMIT_DELAY = 0.5  # seconds between requests to stay under 2 req/sec
 
-    def __init__(self, env: Dict[str, str], request_manager):
+    def __init__(self, env: Dict[str, str], request_manager, product_mapping=None):
         store_url = env.get('SHOPIFY_STORE_URL').rstrip('/')
         access_token = env.get('SHOPIFY_ACCESS_TOKEN')
         self.vendor_tag = env.get('SHOPIFY_VENDOR_TAG', 'Wimood_Sync')
         self.request_manager = request_manager
+        self.product_mapping = product_mapping
 
         self.base_url = f"{store_url}/admin/api/{self.API_VERSION}"
         self.auth_headers = {
@@ -75,31 +78,57 @@ class ShopifyAPI:
 
     def get_all_products(self) -> List[Dict]:
         """
-        Fetch all products managed by this sync (filtered by vendor tag).
-        Handles pagination via the Link header.
+        Fetch all products managed by this sync.
+        Uses product mapping (by IDs) if available, otherwise falls back to vendor tag filtering.
 
         Returns:
             List of Shopify product dicts.
         """
+        if self.product_mapping and len(self.product_mapping) > 0:
+            return self._get_products_by_mapping()
+        return self._get_products_by_vendor_tag()
+
+    def _get_products_by_mapping(self) -> List[Dict]:
+        """Fetch products by their mapped Shopify IDs."""
+        shopify_ids = self.product_mapping.get_all_shopify_ids()
+        if not shopify_ids:
+            LOGGER.info("No mapped products found.")
+            return []
+
+        LOGGER.info(f"Fetching {len(shopify_ids)} products by mapping...")
+        products = []
+        batch_size = 250
+        for i in range(0, len(shopify_ids), batch_size):
+            batch = shopify_ids[i:i + batch_size]
+            ids_param = ','.join(str(pid) for pid in batch)
+            url = f"{self.base_url}/products.json?ids={ids_param}&limit=250"
+
+            self._rate_limit()
+            response = self._request('GET', url)
+            if response:
+                self._log_rate_limit(response)
+                data = response.json()
+                products.extend(data.get('products', []))
+
+        LOGGER.info(f"Fetched {len(products)} mapped products from Shopify.")
+        return products
+
+    def _get_products_by_vendor_tag(self) -> List[Dict]:
+        """Fallback: fetch products by vendor tag."""
         products = []
         url = f"{self.base_url}/products.json?vendor={self.vendor_tag}&limit=250"
 
         while url:
             self._rate_limit()
-            LOGGER.debug(f"GET {url}")
             response = self._request('GET', url)
 
             if response is None:
                 LOGGER.error("Failed to fetch products from Shopify.")
                 return products
 
-            LOGGER.debug(f"Response status: {response.status_code}")
             self._log_rate_limit(response)
             data = response.json()
-            LOGGER.debug(f"Received {len(data.get('products', []))} products in this page")
             products.extend(data.get('products', []))
-
-            # Handle pagination via Link header
             url = self._get_next_page_url(response)
 
         LOGGER.info(f"Fetched {len(products)} products from Shopify (vendor={self.vendor_tag}).")
@@ -130,7 +159,7 @@ class ShopifyAPI:
         Returns:
             Created Shopify product dict, or None on failure.
         """
-        vendor = product_data.get('brand', '').strip() or ""
+        brand = product_data.get('brand', '').strip()
 
         variant = {
             "sku": product_data['sku'],
@@ -145,8 +174,7 @@ class ShopifyAPI:
 
         product_payload = {
             "title": product_data['title'],
-            "vendor": vendor,
-            "tags": self.vendor_tag,
+            "vendor": brand,
             "status": "active",
             "variants": [variant],
         }
@@ -155,11 +183,13 @@ class ShopifyAPI:
         body_html = product_data.get('body_html', '')
         if body_html:
             product_payload["body_html"] = body_html
+            LOGGER.info(f"  Including description ({len(body_html)} chars)")
 
-        # Add images from scraping
-        images = product_data.get('images', [])
-        if images:
-            product_payload["images"] = [{"src": url} for url in images[:10]]
+        # Add images from local files (base64 upload)
+        image_payloads = self._build_image_payloads(product_data)
+        if image_payloads:
+            product_payload["images"] = image_payloads
+            LOGGER.info(f"  Including {len(image_payloads)} images (base64 upload)")
 
         # Add metafields for structured data
         metafields = self._build_metafields(product_data)
@@ -171,7 +201,6 @@ class ShopifyAPI:
         self._rate_limit()
         create_url = f"{self.base_url}/products.json"
         LOGGER.debug(f"POST {create_url}")
-        LOGGER.debug(f"Payload: {payload}")
         response = self._request(
             'POST',
             create_url,
@@ -182,8 +211,6 @@ class ShopifyAPI:
             LOGGER.error(f"Failed to create product: {product_data['sku']}")
             return None
 
-        LOGGER.debug(f"Response status: {response.status_code}")
-        LOGGER.debug(f"Response body: {response.text[:500]}")
         self._log_rate_limit(response)
 
         data = response.json()
@@ -193,56 +220,71 @@ class ShopifyAPI:
 
         created = data.get('product')
         if created:
-            LOGGER.info(f"Created product in Shopify: {product_data['sku']} (ID: {created['id']})")
+            created_images = created.get('images', [])
+            LOGGER.info(
+                f"  Created in Shopify: ID={created['id']}, "
+                f"images={len(created_images)}, "
+                f"status={created.get('status')}"
+            )
+            if self.product_mapping and product_data.get('product_id'):
+                self.product_mapping.set_mapping(
+                    product_data['product_id'], created['id'], product_data['sku']
+                )
             self._set_inventory_level(created, int(product_data.get('stock', 0)))
         return created
 
-    def update_product(self, shopify_product_id: int, product_data: Dict) -> Optional[Dict]:
+    def update_product(self, shopify_product_id: int, product_data: Dict,
+                       existing_shopify_product: Dict = None) -> Optional[Dict]:
         """
         Update an existing Shopify product's title, price, and stock.
 
         Args:
             shopify_product_id: The Shopify product ID.
             product_data: Dict with keys: sku, title, price, stock
+            existing_shopify_product: Optional existing Shopify product dict (avoids extra GET)
 
         Returns:
             Updated Shopify product dict, or None on failure.
         """
+        # Get variant ID from existing product data (no extra API call needed)
         variant_id = None
-        # We need to fetch the product to get variant ID for price update
-        self._rate_limit()
-        fetch_url = f"{self.base_url}/products/{shopify_product_id}.json"
-        LOGGER.debug(f"GET {fetch_url}")
-        existing = self._request('GET', fetch_url)
-        if existing:
-            existing_data = existing.json().get('product', {})
-            variants = existing_data.get('variants', [])
+        if existing_shopify_product:
+            variants = existing_shopify_product.get('variants', [])
             if variants:
                 variant_id = variants[0]['id']
 
-        # Update the product title and status
+        # Update the product title, status, vendor, and variant price in one call
+        brand = product_data.get('brand', '').strip()
         product_payload = {
             "id": shopify_product_id,
             "title": product_data['title'],
+            "vendor": brand,
             "status": "active",
         }
+
+        # Include variant update inline (avoids separate variant PUT)
+        if variant_id:
+            product_payload["variants"] = [{
+                "id": variant_id,
+                "price": product_data['price'],
+            }]
 
         # Add enriched description if available
         body_html = product_data.get('body_html', '')
         if body_html:
             product_payload["body_html"] = body_html
+            LOGGER.info(f"  Including description ({len(body_html)} chars)")
 
-        # Add images if available
-        images = product_data.get('images', [])
-        if images:
-            product_payload["images"] = [{"src": url} for url in images[:10]]
+        # Add images from local files (base64 upload)
+        image_payloads = self._build_image_payloads(product_data)
+        if image_payloads:
+            product_payload["images"] = image_payloads
+            LOGGER.info(f"  Including {len(image_payloads)} images (base64 upload)")
 
         payload = {"product": product_payload}
 
         self._rate_limit()
         update_url = f"{self.base_url}/products/{shopify_product_id}.json"
-        LOGGER.debug(f"PUT {update_url}")
-        LOGGER.debug(f"Payload: {payload}")
         response = self._request(
             'PUT',
             update_url,
@@ -253,30 +295,7 @@ class ShopifyAPI:
             LOGGER.error(f"Failed to update product {shopify_product_id}")
             return None
 
-        LOGGER.debug(f"Response status: {response.status_code}")
-        LOGGER.debug(f"Response body: {response.text[:500]}")
         self._log_rate_limit(response)
-
-        # Update variant (price) if we have a variant ID
-        if variant_id:
-            variant_payload = {
-                "variant": {
-                    "id": variant_id,
-                    "price": product_data['price'],
-                }
-            }
-            self._rate_limit()
-            variant_url = f"{self.base_url}/variants/{variant_id}.json"
-            LOGGER.debug(f"PUT {variant_url}")
-            LOGGER.debug(f"Variant payload: {variant_payload}")
-            variant_resp = self._request(
-                'PUT',
-                variant_url,
-                json=variant_payload,
-            )
-            if variant_resp:
-                LOGGER.debug(f"Variant update status: {variant_resp.status_code}")
-                self._log_rate_limit(variant_resp)
 
         data = response.json()
         if 'errors' in data:
@@ -285,7 +304,12 @@ class ShopifyAPI:
 
         updated = data.get('product')
         if updated:
-            LOGGER.info(f"Updated product in Shopify: {product_data['sku']} (ID: {shopify_product_id})")
+            updated_images = updated.get('images', [])
+            LOGGER.info(
+                f"  Updated in Shopify: ID={shopify_product_id}, "
+                f"images={len(updated_images)}, "
+                f"status={updated.get('status')}"
+            )
             self._set_inventory_level(updated, int(product_data.get('stock', 0)))
         return updated
 
@@ -385,6 +409,21 @@ class ShopifyAPI:
             })
 
         return metafields
+
+    def _build_image_payloads(self, product_data: Dict) -> List[Dict]:
+        """Build image payloads from local files using base64 encoding."""
+        local_images = product_data.get('local_images', [])
+        if not local_images:
+            return []
+
+        payloads = []
+        for filepath in local_images[:10]:
+            base64_data = ImageDownloader.encode_image_base64(filepath)
+            if base64_data:
+                payloads.append({"attachment": base64_data})
+            else:
+                LOGGER.warning(f"Failed to encode image: {filepath}")
+        return payloads
 
     def _set_inventory_level(self, shopify_product: Dict, quantity: int):
         """

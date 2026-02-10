@@ -3,6 +3,8 @@ import time
 
 from integrations import ShopifyAPI, WimoodAPI, WimoodScraper, sync_products
 from utils import (
+    ImageDownloader,
+    ProductMapping,
     ScrapeCache,
     format_seconds_to_human_readable,
     get_main_logger,
@@ -61,7 +63,7 @@ def preflight_checks(wimood_api, shopify_api, scraper=None):
     return True
 
 
-def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scrape_cache=None):
+def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scrape_cache=None, product_mapping=None):
     """
     Main function to execute the product fetching and Shopify synchronization.
     """
@@ -108,6 +110,7 @@ def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scra
             test_mode=TEST_MODE,
             scraper=scraper,
             scrape_cache=scrape_cache,
+            product_mapping=product_mapping,
         )
     except Exception as e:
         LOGGER.error(f"FATAL: Failed to sync products to Shopify: {e}")
@@ -138,7 +141,9 @@ if __name__ == "__main__":
     try:
         REQUEST_MANAGER = init_request_manager(ENV)
         wimood_api = WimoodAPI(ENV, REQUEST_MANAGER)
-        shopify_api = ShopifyAPI(ENV, REQUEST_MANAGER)
+        product_mapping = ProductMapping()
+        LOGGER.info(f"Product mapping loaded with {len(product_mapping)} existing mappings.")
+        shopify_api = ShopifyAPI(ENV, REQUEST_MANAGER, product_mapping=product_mapping)
     except Exception as e:
         LOGGER.critical(f"Failed to initialize managers: {e}")
         sys.exit(1)
@@ -148,7 +153,8 @@ if __name__ == "__main__":
     scrape_cache = None
     if ENABLE_SCRAPING:
         LOGGER.info("Scraping is ENABLED.")
-        scraper = WimoodScraper(ENV, REQUEST_MANAGER)
+        image_downloader = ImageDownloader(REQUEST_MANAGER)
+        scraper = WimoodScraper(ENV, REQUEST_MANAGER, image_downloader=image_downloader)
         scrape_cache = ScrapeCache()
     else:
         LOGGER.info("Scraping is DISABLED. Products will sync without images/descriptions.")
@@ -167,6 +173,7 @@ if __name__ == "__main__":
                 shopify_api,
                 scraper=scraper,
                 scrape_cache=scrape_cache,
+                product_mapping=product_mapping,
             )
 
         except Exception as main_e:

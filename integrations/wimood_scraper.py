@@ -14,11 +14,12 @@ class WimoodScraper:
     images, descriptions, and specification tables.
     """
 
-    def __init__(self, env, request_manager):
+    def __init__(self, env, request_manager, image_downloader=None):
         self.base_url = env.get('WIMOOD_BASE_URL', '').rstrip('/')
         self.delay = env.get('SCRAPE_DELAY_SECONDS', 2)
         self.max_retries = env.get('MAX_SCRAPE_RETRIES', 5)
         self.request_manager = request_manager
+        self.image_downloader = image_downloader
 
         LOGGER.info(f"WimoodScraper initialized (base_url={self.base_url}, delay={self.delay}s)")
 
@@ -71,14 +72,21 @@ class WimoodScraper:
         description = self._extract_description(soup)
         specs = self._extract_specs(soup)
 
+        # Download images locally if downloader is available
+        local_images = []
+        if self.image_downloader and images:
+            local_images = self.image_downloader.download_images(sku, images)
+
         LOGGER.info(
-            f"Scraped {sku}: {len(images)} images, "
+            f"Scraped {sku}: {len(images)} image URLs, "
+            f"{len(local_images)} downloaded, "
             f"description={'yes' if description else 'no'}, "
             f"{len(specs)} specs"
         )
 
         return {
             'images': images,
+            'local_images': local_images,
             'description': description,
             'specs': specs,
         }
@@ -110,22 +118,30 @@ class WimoodScraper:
         """
         images = []
 
-        # Look for product images in common gallery containers
-        gallery = soup.find('div', class_=re.compile(r'product.*image|gallery|slider', re.I))
-        if gallery:
-            img_tags = gallery.find_all('img', src=True)
-        else:
-            # Fallback: find images matching the Wimood image path pattern
-            img_tags = soup.find_all('img', src=re.compile(r'/images/shop/'))
+        # Primary: Flickity slider divs with data-flickity-bg-lazyload attribute
+        slides = soup.find_all('div', attrs={'data-flickity-bg-lazyload': True})
+        for slide in slides:
+            src = slide.get('data-flickity-bg-lazyload', '')
+            if src:
+                abs_url = urljoin(self.base_url, src)
+                if abs_url not in images:
+                    images.append(abs_url)
 
-        for img in img_tags:
-            src = img.get('src', '')
-            if not src:
-                continue
-            # Make absolute URL
-            abs_url = urljoin(self.base_url, src)
-            if abs_url not in images:
-                images.append(abs_url)
+        # Fallback: img tags in gallery containers
+        if not images:
+            gallery = soup.find('div', class_=re.compile(r'product.*image|gallery|slider', re.I))
+            if gallery:
+                img_tags = gallery.find_all('img', src=True)
+            else:
+                img_tags = soup.find_all('img', src=re.compile(r'/images/shop/'))
+
+            for img in img_tags:
+                src = img.get('src', '')
+                if not src:
+                    continue
+                abs_url = urljoin(self.base_url, src)
+                if abs_url not in images:
+                    images.append(abs_url)
 
         return images[:10]  # Shopify max 10 images
 

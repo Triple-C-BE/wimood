@@ -29,6 +29,7 @@ def sample_enriched_product(sample_wimood_product):
             'https://wimoodshop.nl/images/shop/12345_1.jpg',
             'https://wimoodshop.nl/images/shop/12345_2.jpg',
         ],
+        'local_images': [],
         'specs': {
             'Kleur': 'Zwart',
             'Materiaal': 'Mesh',
@@ -119,15 +120,19 @@ def sample_xml_response():
 
 @pytest.fixture
 def sample_product_html():
-    """Sample HTML for a Wimood product page."""
+    """Sample HTML for a Wimood product page (matches actual wimoodshop.com structure)."""
     return '''
 <html>
 <body>
-    <div class="product-images">
-        <img src="/images/shop/12345_1.jpg" alt="Product image 1">
-        <img src="/images/shop/12345_2.jpg" alt="Product image 2">
-        <img src="/images/shop/12345_3.jpg" alt="Product image 3">
-    </div>
+    <product-slider inline-template>
+        <div class="product-slider">
+            <div class="product-slider__main" ref="productDetailSlider">
+                <div class="product-slider__slide" data-flickity-bg-lazyload="/images/shop/12345_1" title="Test Product"></div>
+                <div class="product-slider__slide" data-flickity-bg-lazyload="/images/shop/12345_2" title="Test Product"></div>
+                <div class="product-slider__slide" data-flickity-bg-lazyload="/images/shop/12345_3" title="Test Product"></div>
+            </div>
+        </div>
+    </product-slider>
 
     <div class="product-details">
         <div class="collapsible">
