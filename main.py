@@ -1,16 +1,15 @@
-import os
 import sys
 import time
-from datetime import datetime
-from utils import (
-    load_env_variables,
-    init_logging_config,
-    get_main_logger,
-    init_request_manager,
-    format_seconds_to_human_readable
-)
-from integrations import WimoodAPI, ShopifyAPI, sync_products
 
+from integrations import ShopifyAPI, WimoodAPI, WimoodScraper, sync_products
+from utils import (
+    ScrapeCache,
+    format_seconds_to_human_readable,
+    get_main_logger,
+    init_logging_config,
+    init_request_manager,
+    load_env_variables,
+)
 
 # --- Configuration & Setup ---
 
@@ -27,46 +26,89 @@ init_logging_config(ENV)
 # Get the actual logger instance
 LOGGER = get_main_logger()
 
-# Extract the synchronization interval from the environment
-SYNC_INTERVAL = ENV.get('SYNC_INTERVAL_SECONDS', 3600) # Default to 1 hour (3600s)
+# Extract config from the environment
+SYNC_INTERVAL = ENV.get('SYNC_INTERVAL_SECONDS', 3600)
+TEST_MODE = ENV.get('TEST_MODE', False)
+TEST_PRODUCT_LIMIT = ENV.get('TEST_PRODUCT_LIMIT', 5)
+ENABLE_SCRAPING = ENV.get('ENABLE_SCRAPING', False)
 
 
+def preflight_checks(wimood_api, shopify_api, scraper=None):
+    """
+    Run pre-flight connectivity checks before starting the sync loop.
+    Exits the process if any required API is unreachable or misconfigured.
+    """
+    LOGGER.info("Running pre-flight API checks...")
 
-def run_wimood_sync():
+    wimood_ok = wimood_api.check_connection()
+    shopify_ok = shopify_api.check_connection()
+
+    if not wimood_ok:
+        LOGGER.critical("Pre-flight FAILED: Wimood API is not reachable or misconfigured. Exiting.")
+        sys.exit(1)
+
+    if not shopify_ok:
+        LOGGER.critical("Pre-flight FAILED: Shopify API is not reachable or credentials are invalid. Exiting.")
+        sys.exit(1)
+
+    if scraper:
+        scraper_ok = scraper.check_connection()
+        if not scraper_ok:
+            LOGGER.warning("Pre-flight WARNING: Wimood website is not reachable. Scraping will be skipped.")
+            return False
+
+    LOGGER.info("Pre-flight checks passed.")
+    return True
+
+
+def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scrape_cache=None):
     """
     Main function to execute the product fetching and Shopify synchronization.
     """
     start_time = time.time()
     LOGGER.info("====================================================================")
-    LOGGER.info(f"🔄 STARTING SYNC: Wimood to Shopify")
+    LOGGER.info("STARTING SYNC: Wimood to Shopify")
     LOGGER.info("--------------------------------------------------------------------")
 
-    # Initialize Managers
-    try:
-        # Managers handle their own sub-logging
-        REQUEST_MANAGER = init_request_manager(ENV)
-        wimood_api = WimoodAPI(ENV, REQUEST_MANAGER)
-        shopify_api = ShopifyAPI(ENV, REQUEST_MANAGER)
-
-    except Exception as e:
-        LOGGER.error(f"Failed to initialize managers. Aborting sync: {e}")
-        return
-
-    #Fetch Core Data (API - Fast and reliable for price/stock)
+    # Fetch Core Data (API - Fast and reliable for price/stock)
     wimood_core_products = []
     try:
         LOGGER.info("Fetching core data (Title, Price, Stock) via Wimood API...")
 
         wimood_core_products = wimood_api.fetch_core_products()
         LOGGER.info(f"Fetched {len(wimood_core_products)} products from Wimood API.")
+
+        if TEST_MODE:
+            wimood_core_products = wimood_core_products[:TEST_PRODUCT_LIMIT]
+            LOGGER.warning(f"TEST MODE: Limiting sync to first {len(wimood_core_products)} products.")
+            LOGGER.info("--- Test Mode Product Summary ---")
+            for i, p in enumerate(wimood_core_products, 1):
+                LOGGER.info(
+                    f"  [{i}/{len(wimood_core_products)}] "
+                    f"SKU={p.get('sku', '')} | "
+                    f"Title={p.get('title', '')} | "
+                    f"Brand={p.get('brand', '')} | "
+                    f"EAN={p.get('ean', '')} | "
+                    f"Price={p.get('price', '0.00')} | "
+                    f"MSRP={p.get('msrp', '0.00')} | "
+                    f"Stock={p.get('stock', '0')}"
+                )
+            LOGGER.info("---------------------------------")
+
     except Exception as e:
         LOGGER.error(f"FATAL: Failed to fetch core data from Wimood API. Aborting sync: {e}")
         return
 
-    # Sync with Shopify
+    # Sync with Shopify (enrichment happens inside sync_products if scraper is provided)
     LOGGER.info("Starting synchronization with Shopify...")
     try:
-        sync_results = sync_products(wimood_core_products, shopify_api)
+        sync_results = sync_products(
+            wimood_core_products,
+            shopify_api,
+            test_mode=TEST_MODE,
+            scraper=scraper,
+            scrape_cache=scrape_cache,
+        )
     except Exception as e:
         LOGGER.error(f"FATAL: Failed to sync products to Shopify: {e}")
         return
@@ -82,21 +124,53 @@ def run_wimood_sync():
     LOGGER.info(f"Errors: {sync_results['errors']}")
 
     LOGGER.info("--------------------------------------------------------------------")
-    LOGGER.info(f"✅ SYNC COMPLETE | Duration: {duration:.2f} seconds")
+    LOGGER.info(f"SYNC COMPLETE | Duration: {duration:.2f} seconds")
     LOGGER.info("====================================================================")
 
 
 if __name__ == "__main__":
     sleep_display_time = format_seconds_to_human_readable(SYNC_INTERVAL)
 
+    if TEST_MODE:
+        LOGGER.warning(f"TEST MODE ENABLED — product limit: {TEST_PRODUCT_LIMIT}")
+
+    # Initialize managers once at startup
+    try:
+        REQUEST_MANAGER = init_request_manager(ENV)
+        wimood_api = WimoodAPI(ENV, REQUEST_MANAGER)
+        shopify_api = ShopifyAPI(ENV, REQUEST_MANAGER)
+    except Exception as e:
+        LOGGER.critical(f"Failed to initialize managers: {e}")
+        sys.exit(1)
+
+    # Initialize scraper + cache if enabled
+    scraper = None
+    scrape_cache = None
+    if ENABLE_SCRAPING:
+        LOGGER.info("Scraping is ENABLED.")
+        scraper = WimoodScraper(ENV, REQUEST_MANAGER)
+        scrape_cache = ScrapeCache()
+    else:
+        LOGGER.info("Scraping is DISABLED. Products will sync without images/descriptions.")
+
+    # Run pre-flight checks once at startup
+    scraping_ok = preflight_checks(wimood_api, shopify_api, scraper=scraper)
+    if not scraping_ok and scraper:
+        LOGGER.warning("Disabling scraper due to failed pre-flight check.")
+        scraper = None
+
     while True:
         try:
-            # Execute the full synchronization run
-            run_wimood_sync()
+            run_wimood_sync(
+                REQUEST_MANAGER,
+                wimood_api,
+                shopify_api,
+                scraper=scraper,
+                scrape_cache=scrape_cache,
+            )
 
         except Exception as main_e:
-            # The logging.exception function prints the traceback automatically
-            LOGGER.exception(f"❌ Unhandled critical exception in sync loop: {main_e}")
+            LOGGER.exception(f"Unhandled critical exception in sync loop: {main_e}")
 
-        LOGGER.info("😴 Sync cycle complete. Next run in %s...\n", sleep_display_time)
+        LOGGER.info("Sync cycle complete. Next run in %s...\n", sleep_display_time)
         time.sleep(SYNC_INTERVAL)

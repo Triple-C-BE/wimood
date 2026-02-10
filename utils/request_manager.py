@@ -1,12 +1,14 @@
-import os
+import logging
 import random
+from pathlib import Path
+from typing import Dict, List, Optional
+
 import requests
 import yaml
-from pathlib import Path
-from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
-from typing import Optional, Dict, List
-from utils.env import get_env_var # Assuming you will use the new env setup
+from urllib3.util.retry import Retry
+
+LOGGER = logging.getLogger('request_manager')
 
 
 def load_user_agents(path: str = "config/user_agents.yaml") -> List[str]:
@@ -87,9 +89,9 @@ class RequestManager:
         # Merge auto-rotated headers with any custom headers passed in kwargs
         default_headers = self._get_random_headers()
 
-        # Give kwargs['headers'] priority
+        # Give kwargs['headers'] priority, then remove from kwargs to avoid duplication
         if 'headers' in kwargs:
-            headers = {**default_headers, **kwargs['headers']}
+            headers = {**default_headers, **kwargs.pop('headers')}
         else:
             headers = default_headers
 
@@ -108,9 +110,20 @@ class RequestManager:
 
             return response
 
+        except requests.exceptions.HTTPError as e:
+            # Log the status code and response body for non-2xx responses
+            resp = e.response
+            if resp is not None:
+                LOGGER.error(
+                    f"HTTP {resp.status_code} for {method} {url} — "
+                    f"Body: {resp.text[:500]}"
+                )
+            else:
+                LOGGER.error(f"HTTP error for {method} {url}: {e}")
+            return None
+
         except requests.exceptions.RequestException as e:
-            # This handles all exceptions: connection errors, timeouts, and final status failures
-            print(f"[ERROR] Request failed after all retries for {url}: {e}")
+            LOGGER.error(f"Request failed after all retries for {method} {url}: {e}")
             return None
 
 

@@ -1,6 +1,7 @@
 import logging
 import os
 
+
 def init_logging_config(env_config: dict):
     """Initializes the logging module's global configuration from the ENV dict."""
     global LOG_TO_STDOUT, LOG_DIR, SCRAPER_LOG_DIR, GLOBAL_LOG_LEVEL

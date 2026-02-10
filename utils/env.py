@@ -1,5 +1,7 @@
 import os
+
 from dotenv import load_dotenv
+
 
 def get_env_var(key: str, default=None, var_type=str, required=False):
     """
@@ -53,13 +55,20 @@ def load_env_variables():
                 'WIMOOD_BASE_URL': get_env_var('WIMOOD_BASE_URL', required=True),
                 'WIMOOD_CUSTOMER_ID': get_env_var('WIMOOD_CUSTOMER_ID', required=True),
 
-                # --- Shopify Private App Credentials ---
-                'SHOPIFY_SHOP_NAME': get_env_var('SHOPIFY_SHOP_NAME', required=True),  # e.g., my-store
-                'SHOPIFY_API_KEY': get_env_var('SHOPIFY_API_KEY', required=True),
-                'SHOPIFY_API_PASSWORD': get_env_var('SHOPIFY_API_PASSWORD', required=True),  # Admin API Access Token
+                # --- Shopify Admin API Credentials ---
+                'SHOPIFY_STORE_URL': get_env_var('SHOPIFY_STORE_URL', required=True),  # e.g., https://my-store.myshopify.com
+                'SHOPIFY_ACCESS_TOKEN': get_env_var('SHOPIFY_ACCESS_TOKEN', required=True),
 
                 # --- Sync Configuration ---
                 'SHOPIFY_VENDOR_TAG': get_env_var('SHOPIFY_VENDOR_TAG', default='Wimood_Sync', required=False),
+
+                # --- Scraping ---
+                'ENABLE_SCRAPING': get_env_var('ENABLE_SCRAPING', default=False, var_type=bool, required=False),
+                'SCRAPE_DELAY_SECONDS': get_env_var('SCRAPE_DELAY_SECONDS', default=2, var_type=int, required=False),
+
+                # --- Test Mode ---
+                'TEST_MODE': get_env_var('TEST_MODE', default=False, var_type=bool, required=False),
+                'TEST_PRODUCT_LIMIT': get_env_var('TEST_PRODUCT_LIMIT', default=5, var_type=int, required=False),
 
             }
             return env

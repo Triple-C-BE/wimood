@@ -1,7 +1,8 @@
-import xml.etree.ElementTree as ET
-from typing import List, Dict, Optional
-from requests import Response
 import logging
+import xml.etree.ElementTree as ET
+from typing import Dict, List, Optional
+
+from requests import Response
 
 # Get a dedicated logger for API calls
 API_LOGGER = logging.getLogger('wimood_api')
@@ -26,6 +27,42 @@ class WimoodAPI:
         self.full_url = f"{self.api_url}/index.php?api_key={self.api_key}&klantnummer={self.customer_id}"
 
         API_LOGGER.info(f"WimoodAPIFetcher initialized for URL: {self.api_url}")
+
+    def check_connection(self) -> bool:
+        """
+        Pre-flight check: verify we can reach the Wimood API and get valid XML with products.
+
+        Returns:
+            True if connection is healthy, False otherwise.
+        """
+        API_LOGGER.info("Running Wimood API pre-flight check...")
+        response = self.request_manager.request('GET', self.full_url)
+
+        if response is None:
+            API_LOGGER.error("Pre-flight FAILED: Could not reach Wimood API (network error or timeout).")
+            return False
+
+        if response.status_code != 200:
+            API_LOGGER.error(f"Pre-flight FAILED: Wimood API returned status {response.status_code}.")
+            return False
+
+        if "Invalid API Key" in response.text:
+            API_LOGGER.error("Pre-flight FAILED: Wimood API returned 'Invalid API Key'.")
+            return False
+
+        try:
+            root = ET.fromstring(response.content.decode('utf-8'))
+        except ET.ParseError as e:
+            API_LOGGER.error(f"Pre-flight FAILED: Response is not valid XML: {e}")
+            return False
+
+        products = root.findall('.//product')
+        if not products:
+            API_LOGGER.error("Pre-flight FAILED: XML contains no <product> elements.")
+            return False
+
+        API_LOGGER.info(f"Pre-flight OK: Wimood API reachable, found {len(products)} products in feed.")
+        return True
 
     def fetch_core_products(self) -> Optional[List[Dict]]:
         """
@@ -74,12 +111,16 @@ class WimoodAPI:
         for element in product_elements:
             try:
                 product = {
-                    'sku': element.findtext('sku', default=''),
-                    'title': element.findtext('title', default=''),
-                    'price': element.findtext('price', default='0.00'),
+                    'product_id': element.findtext('product_id', default=''),
+                    'sku': element.findtext('product_code', default=''),
+                    'title': element.findtext('product_name', default=''),
+                    'brand': element.findtext('brand', default=''),
+                    'ean': element.findtext('ean', default='').strip(),
+                    'price': element.findtext('prijs', default='0.00'),
+                    'msrp': element.findtext('msrp', default='0.00'),
                     'stock': element.findtext('stock', default='0'),
-                    # Add any other core fields you need
                 }
+                API_LOGGER.debug(f"Parsed product: {product}")
                 products_data.append(product)
             except Exception as e:
                 # Log an error but continue processing other products
