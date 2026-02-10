@@ -5,14 +5,10 @@ LOGGER = logging.getLogger('shopify_sync')
 
 
 def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = False,
-                   scraper=None, scrape_cache=None, product_mapping=None) -> Dict[str, int]:
+                   scraper=None, scrape_cache=None, product_mapping=None,
+                   scrape_mode: str = "new_only") -> Dict[str, int]:
     """
     Orchestrates the full product sync from Wimood to Shopify.
-
-    1. Optionally enriches products via web scraping
-    2. Fetches all Shopify products managed by this sync (filtered by vendor tag)
-    3. Builds a SKU->product map for Shopify products
-    4. Creates new products, updates existing ones, deactivates removed ones
 
     Args:
         wimood_products: List of product dicts from Wimood API
@@ -20,6 +16,9 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
         test_mode: If True, log verbose per-product output at INFO level
         scraper: Optional WimoodScraper instance for enrichment
         scrape_cache: Optional ScrapeCache instance
+        product_mapping: Optional ProductMapping instance
+        scrape_mode: "new_only" = only scrape products not in mapping (default),
+                     "full" = scrape all products (respects cache staleness)
 
     Returns:
         Dict with counts: created, updated, deactivated, skipped, errors
@@ -28,13 +27,20 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
 
     # 0. Enrich products via scraping (if enabled)
     if scraper:
-        enrich_stats = {'scraped': 0, 'cached': 0, 'failed': 0}
-        LOGGER.info("Enriching products via web scraping...")
+        enrich_stats = {'scraped': 0, 'cached': 0, 'skipped': 0, 'failed': 0}
+        LOGGER.info(f"Enriching products via web scraping (mode={scrape_mode})...")
 
         for product in wimood_products:
             sku = product.get('sku', '')
             if not sku:
                 continue
+
+            # In "new_only" mode, skip products that already exist in the mapping
+            if scrape_mode == "new_only" and product_mapping:
+                wimood_id = product.get('product_id', '')
+                if wimood_id and product_mapping.get_shopify_id(wimood_id):
+                    enrich_stats['skipped'] += 1
+                    continue
 
             # Check cache first
             if scrape_cache and not scrape_cache.is_stale(sku):
@@ -69,7 +75,8 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
 
         LOGGER.info(
             f"Enrichment complete — Scraped: {enrich_stats['scraped']}, "
-            f"Cached: {enrich_stats['cached']}, Failed: {enrich_stats['failed']}"
+            f"Cached: {enrich_stats['cached']}, Skipped: {enrich_stats['skipped']}, "
+            f"Failed: {enrich_stats['failed']}"
         )
 
     # 1. Fetch all existing Shopify products managed by this sync
