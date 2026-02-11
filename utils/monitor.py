@@ -17,13 +17,19 @@ class MonitorServer:
         self._port = port
         self._start_time = time.time()
         self._state = {
-            "status": "ok",
-            "last_sync": None,
-            "last_sync_duration_seconds": None,
-            "last_sync_mode": None,
-            "last_sync_results": None,
-            "next_sync_in_seconds": None,
-            "next_full_sync_in_seconds": None,
+            "status": "starting",
+            "last_sync": "never",
+            "last_sync_duration_seconds": 0,
+            "last_sync_mode": "none",
+            "last_sync_results": {
+                "created": 0,
+                "updated": 0,
+                "deactivated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "next_sync_in_seconds": 0,
+            "next_full_sync_in_seconds": 0,
             "uptime_seconds": 0,
             "scraping_enabled": scraping_enabled,
         }
