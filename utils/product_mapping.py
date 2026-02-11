@@ -34,16 +34,9 @@ class ProductMapping:
             conn.execute('CREATE INDEX IF NOT EXISTS idx_sku ON product_mapping(sku)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_shopify_id ON product_mapping(shopify_product_id)')
             conn.execute('''
-                CREATE TABLE IF NOT EXISTS synced_products (
+                CREATE TABLE IF NOT EXISTS cost_sync_status (
                     sku TEXT PRIMARY KEY,
-                    title TEXT,
-                    price TEXT,
-                    wholesale_price TEXT,
-                    stock TEXT,
-                    brand TEXT,
-                    ean TEXT,
-                    cost_synced BOOLEAN DEFAULT 0,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
         LOGGER.info(f"Product mapping database initialized at {self.db_file}")
@@ -108,57 +101,19 @@ class ProductMapping:
             LOGGER.debug(f"Removed mapping for Wimood product {wimood_product_id}")
         return deleted
 
-    def get_synced_product(self, sku: str) -> Optional[Dict]:
-        """Get cached sync data for a product by SKU."""
-        with sqlite3.connect(self.db_file) as conn:
-            conn.row_factory = sqlite3.Row
-            row = conn.execute(
-                'SELECT * FROM synced_products WHERE sku = ?', (sku,)
-            ).fetchone()
-        return dict(row) if row else None
-
-    def set_synced_product(self, sku: str, title: str, price: str, wholesale_price: str,
-                           stock: str, brand: str, ean: str, cost_synced: bool = False):
-        """Upsert a product's sync state."""
-        with sqlite3.connect(self.db_file) as conn:
-            conn.execute('''
-                INSERT INTO synced_products (sku, title, price, wholesale_price, stock, brand, ean, cost_synced, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(sku) DO UPDATE SET
-                    title = excluded.title,
-                    price = excluded.price,
-                    wholesale_price = excluded.wholesale_price,
-                    stock = excluded.stock,
-                    brand = excluded.brand,
-                    ean = excluded.ean,
-                    cost_synced = excluded.cost_synced,
-                    updated_at = CURRENT_TIMESTAMP
-            ''', (sku, title, price, wholesale_price, stock, brand, ean, int(cost_synced)))
-
-    def has_product_changed(self, sku: str, product_data: Dict) -> bool:
-        """Compare product data against cached sync state. Returns True if changed or new."""
-        cached = self.get_synced_product(sku)
-        if not cached:
-            return True
-        return (
-            cached['title'] != product_data.get('title', '') or
-            cached['price'] != product_data.get('price', '') or
-            cached['stock'] != product_data.get('stock', '')
-        )
-
     def is_cost_synced(self, sku: str) -> bool:
         """Check if cost has been synced for a product."""
         with sqlite3.connect(self.db_file) as conn:
             row = conn.execute(
-                'SELECT cost_synced FROM synced_products WHERE sku = ?', (sku,)
+                'SELECT 1 FROM cost_sync_status WHERE sku = ?', (sku,)
             ).fetchone()
-        return bool(row and row[0])
+        return row is not None
 
     def mark_cost_synced(self, sku: str):
         """Mark a product's cost as synced."""
         with sqlite3.connect(self.db_file) as conn:
             conn.execute(
-                'UPDATE synced_products SET cost_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE sku = ?',
+                'INSERT OR REPLACE INTO cost_sync_status (sku, synced_at) VALUES (?, CURRENT_TIMESTAMP)',
                 (sku,)
             )
 

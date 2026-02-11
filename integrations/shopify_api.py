@@ -88,29 +88,6 @@ class ShopifyAPI:
             return self._get_products_by_mapping()
         return self._get_products_by_vendor_tag()
 
-    def get_products_by_ids(self, shopify_ids: List[int]) -> List[Dict]:
-        """Fetch specific products by their Shopify IDs."""
-        if not shopify_ids:
-            return []
-
-        LOGGER.info(f"Fetching {len(shopify_ids)} products by ID...")
-        products = []
-        batch_size = 250
-        for i in range(0, len(shopify_ids), batch_size):
-            batch = shopify_ids[i:i + batch_size]
-            ids_param = ','.join(str(pid) for pid in batch)
-            url = f"{self.base_url}/products.json?ids={ids_param}&limit=250"
-
-            self._rate_limit()
-            response = self._request('GET', url)
-            if response:
-                self._log_rate_limit(response)
-                data = response.json()
-                products.extend(data.get('products', []))
-
-        LOGGER.info(f"Fetched {len(products)} products by ID from Shopify.")
-        return products
-
     def _get_products_by_mapping(self) -> List[Dict]:
         """Fetch products by their mapped Shopify IDs."""
         shopify_ids = self.product_mapping.get_all_shopify_ids()

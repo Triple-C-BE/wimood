@@ -79,162 +79,6 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
             f"Failed: {enrich_stats['failed']}"
         )
 
-    # Determine sync strategy based on scrape_mode and product_mapping availability
-    if scrape_mode == "new_only" and product_mapping:
-        return _quick_sync(wimood_products, shopify_api, product_mapping, results)
-    else:
-        return _full_sync(wimood_products, shopify_api, product_mapping, results)
-
-
-def _quick_sync(wimood_products: List[Dict], shopify_api, product_mapping,
-                results: Dict[str, int]) -> Dict[str, int]:
-    """
-    Quick sync: use local synced_products cache to detect changes.
-    Only fetches from Shopify for products that actually changed.
-    """
-    # Classify products by change status
-    changed_products = []
-    unchanged_products = []
-    cost_needed_products = []
-
-    for product_data in wimood_products:
-        sku = product_data.get('sku', '')
-        if not sku:
-            results['skipped'] += 1
-            continue
-
-        if product_mapping.has_product_changed(sku, product_data):
-            changed_products.append(product_data)
-        elif not product_mapping.is_cost_synced(sku):
-            cost_needed_products.append(product_data)
-            unchanged_products.append(product_data)
-        else:
-            unchanged_products.append(product_data)
-
-    LOGGER.info(
-        f"Local change detection: {len(changed_products)} changed, "
-        f"{len(unchanged_products)} unchanged, "
-        f"{len(cost_needed_products)} need cost sync"
-    )
-
-    if not changed_products and not cost_needed_products:
-        results['skipped'] = len(unchanged_products)
-        LOGGER.info("No changes detected — skipping Shopify fetch.")
-        _log_sync_summary(results)
-        return results
-
-    # Fetch only the Shopify products we need (changed + cost-needed)
-    needed_shopify_ids = []
-    needed_skus = set()
-    for product_data in changed_products + cost_needed_products:
-        wimood_id = product_data.get('product_id', '')
-        sku = product_data.get('sku', '')
-        if wimood_id:
-            shopify_id = product_mapping.get_shopify_id(wimood_id)
-            if shopify_id:
-                needed_shopify_ids.append(shopify_id)
-        needed_skus.add(sku)
-
-    # Fetch matched Shopify products
-    shopify_products = []
-    if needed_shopify_ids:
-        shopify_products = shopify_api.get_products_by_ids(needed_shopify_ids)
-
-    # Build lookup maps
-    shopify_sku_map = {}
-    shopify_id_map = {}
-    for product in shopify_products:
-        shopify_id_map[product['id']] = product
-        for variant in product.get('variants', []):
-            sku = variant.get('sku', '')
-            if sku:
-                shopify_sku_map[sku] = product
-                break
-
-    # Process changed products
-    total = len(changed_products)
-    LOGGER.info("--------------------------------------------------------------------")
-    LOGGER.info(f"Processing {total} changed products...")
-    for idx, product_data in enumerate(changed_products, 1):
-        sku = product_data.get('sku', '')
-        title = product_data.get('title', '')
-        price = product_data.get('price', '0.00')
-        stock = product_data.get('stock', '0')
-        has_images = len(product_data.get('local_images', product_data.get('images', [])))
-        has_desc = bool(product_data.get('body_html', ''))
-
-        LOGGER.info(
-            f"[{idx}/{total}] SKU={sku} | {title} | "
-            f"Price={price} | Stock={stock} | "
-            f"Images={has_images} | Desc={'yes' if has_desc else 'no'}"
-        )
-
-        wimood_product_id = product_data.get('product_id', '')
-
-        # Find existing product
-        existing = None
-        if wimood_product_id:
-            shopify_id = product_mapping.get_shopify_id(wimood_product_id)
-            if shopify_id:
-                existing = shopify_id_map.get(shopify_id)
-        if not existing and sku in shopify_sku_map:
-            existing = shopify_sku_map[sku]
-
-        if existing:
-            if _needs_update(existing, product_data):
-                changes = _describe_changes(existing, product_data)
-                LOGGER.info(f"  -> UPDATE ({changes})")
-                result = shopify_api.update_product(existing['id'], product_data, existing_shopify_product=existing)
-                if result:
-                    results['updated'] += 1
-                    if wimood_product_id:
-                        product_mapping.set_mapping(wimood_product_id, existing['id'], sku)
-                    _update_sync_cache(product_mapping, sku, product_data, cost_synced=True)
-                else:
-                    results['errors'] += 1
-            else:
-                LOGGER.info("  -> SKIP (no changes on Shopify)")
-                results['skipped'] += 1
-                if wimood_product_id:
-                    product_mapping.set_mapping(wimood_product_id, existing['id'], sku)
-                _update_sync_cache(product_mapping, sku, product_data,
-                                   cost_synced=product_mapping.is_cost_synced(sku))
-        else:
-            LOGGER.info("  -> CREATE")
-            result = shopify_api.create_product(product_data)
-            if result:
-                results['created'] += 1
-                _update_sync_cache(product_mapping, sku, product_data, cost_synced=True)
-            else:
-                results['errors'] += 1
-
-    # Process cost-needed products (unchanged data, just need cost set)
-    if cost_needed_products:
-        LOGGER.info(f"Setting cost on {len(cost_needed_products)} products...")
-        for product_data in cost_needed_products:
-            sku = product_data.get('sku', '')
-            existing = shopify_sku_map.get(sku)
-            if existing:
-                cost = product_data.get('wholesale_price', '')
-                if shopify_api.set_cost_for_product(existing, cost):
-                    product_mapping.mark_cost_synced(sku)
-                    LOGGER.debug(f"  Cost synced for SKU={sku}")
-
-    # Count unchanged products that weren't in cost_needed
-    results['skipped'] += len(unchanged_products) - len(cost_needed_products)
-    # cost_needed_products are counted as skipped too (product data unchanged)
-    results['skipped'] += len(cost_needed_products)
-
-    _log_sync_summary(results)
-    return results
-
-
-def _full_sync(wimood_products: List[Dict], shopify_api, product_mapping,
-               results: Dict[str, int]) -> Dict[str, int]:
-    """
-    Full sync: fetches all products from Shopify, syncs everything,
-    populates the local cache, and backfills cost.
-    """
     # 1. Fetch all existing Shopify products managed by this sync
     LOGGER.info("Fetching existing Shopify products...")
     shopify_products = shopify_api.get_all_products()
@@ -303,8 +147,6 @@ def _full_sync(wimood_products: List[Dict], shopify_api, product_mapping,
                     # Update mapping if not already set
                     if product_mapping and wimood_product_id:
                         product_mapping.set_mapping(wimood_product_id, existing['id'], sku)
-                    if product_mapping:
-                        _update_sync_cache(product_mapping, sku, product_data, cost_synced=True)
                 else:
                     results['errors'] += 1
             else:
@@ -318,12 +160,7 @@ def _full_sync(wimood_products: List[Dict], shopify_api, product_mapping,
                 if product_mapping and not product_mapping.is_cost_synced(sku):
                     cost = product_data.get('wholesale_price', '')
                     if shopify_api.set_cost_for_product(existing, cost):
-                        cost_synced = True
-                    else:
-                        cost_synced = False
-                    _update_sync_cache(product_mapping, sku, product_data, cost_synced=cost_synced)
-                elif product_mapping:
-                    _update_sync_cache(product_mapping, sku, product_data, cost_synced=True)
+                        product_mapping.mark_cost_synced(sku)
         else:
             # New product — create it
             LOGGER.info("  -> CREATE")
@@ -331,7 +168,7 @@ def _full_sync(wimood_products: List[Dict], shopify_api, product_mapping,
             if result:
                 results['created'] += 1
                 if product_mapping:
-                    _update_sync_cache(product_mapping, sku, product_data, cost_synced=True)
+                    product_mapping.mark_cost_synced(sku)
             else:
                 results['errors'] += 1
 
@@ -347,31 +184,13 @@ def _full_sync(wimood_products: List[Dict], shopify_api, product_mapping,
                 else:
                     results['errors'] += 1
 
-    _log_sync_summary(results)
-    return results
-
-
-def _update_sync_cache(product_mapping, sku: str, product_data: Dict, cost_synced: bool):
-    """Update the synced_products cache after a successful sync."""
-    product_mapping.set_synced_product(
-        sku=sku,
-        title=product_data.get('title', ''),
-        price=product_data.get('price', ''),
-        wholesale_price=product_data.get('wholesale_price', ''),
-        stock=product_data.get('stock', ''),
-        brand=product_data.get('brand', ''),
-        ean=product_data.get('ean', ''),
-        cost_synced=cost_synced,
-    )
-
-
-def _log_sync_summary(results: Dict[str, int]):
-    """Log the sync summary."""
     LOGGER.info(
         f"Sync complete — Created: {results['created']}, Updated: {results['updated']}, "
         f"Deactivated: {results['deactivated']}, Skipped: {results['skipped']}, "
         f"Errors: {results['errors']}"
     )
+
+    return results
 
 
 def _normalize_price(value) -> str:

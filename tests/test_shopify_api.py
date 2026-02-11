@@ -237,27 +237,6 @@ class TestShopifyAPI:
         assert api.set_cost_for_product(sample_shopify_product, '') is False
         assert api.set_cost_for_product(sample_shopify_product, '0.00') is False
 
-    def test_get_products_by_ids(self, sample_env, mock_request_manager):
-        """Test fetching products by specific IDs."""
-        resp = MagicMock()
-        resp.status_code = 200
-        resp.json.return_value = {'products': [{'id': 100}, {'id': 200}]}
-        resp.headers = {}
-
-        mock_request_manager.request.return_value = resp
-
-        api = self._make_api(sample_env, mock_request_manager)
-        products = api.get_products_by_ids([100, 200])
-        assert len(products) == 2
-        assert products[0]['id'] == 100
-
-    def test_get_products_by_ids_empty(self, sample_env, mock_request_manager):
-        """Test that empty IDs list returns empty result."""
-        api = self._make_api(sample_env, mock_request_manager)
-        products = api.get_products_by_ids([])
-        assert products == []
-        mock_request_manager.request.assert_not_called()
-
     def test_build_metafields(self, sample_env, mock_request_manager, sample_enriched_product):
         api = self._make_api(sample_env, mock_request_manager)
         metafields = api._build_metafields(sample_enriched_product)
