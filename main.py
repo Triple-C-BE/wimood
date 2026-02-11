@@ -35,7 +35,6 @@ LOGGER = get_main_logger()
 SYNC_INTERVAL = ENV.get('SYNC_INTERVAL_SECONDS', 3600)
 TEST_MODE = ENV.get('TEST_MODE', False)
 TEST_PRODUCT_LIMIT = ENV.get('TEST_PRODUCT_LIMIT', 5)
-ENABLE_SCRAPING = ENV.get('ENABLE_SCRAPING', False)
 
 
 def preflight_checks(wimood_api, shopify_api, scraper=None):
@@ -162,16 +161,10 @@ if __name__ == "__main__":
         LOGGER.critical(f"Failed to initialize managers: {e}")
         sys.exit(1)
 
-    # Initialize scraper + cache if enabled
-    scraper = None
-    scrape_cache = None
-    if ENABLE_SCRAPING:
-        LOGGER.info("Scraping is ENABLED.")
-        image_downloader = ImageDownloader(REQUEST_MANAGER)
-        scraper = WimoodScraper(ENV, REQUEST_MANAGER, image_downloader=image_downloader)
-        scrape_cache = ScrapeCache()
-    else:
-        LOGGER.info("Scraping is DISABLED. Products will sync without images/descriptions.")
+    # Initialize scraper + cache (always needed for new product enrichment)
+    image_downloader = ImageDownloader(REQUEST_MANAGER)
+    scraper = WimoodScraper(ENV, REQUEST_MANAGER, image_downloader=image_downloader)
+    scrape_cache = ScrapeCache()
 
     # Run pre-flight checks once at startup
     scraping_ok = preflight_checks(wimood_api, shopify_api, scraper=scraper)
@@ -184,7 +177,7 @@ if __name__ == "__main__":
     if ENV.get('ENABLE_MONITORING', False):
         monitor = MonitorServer(
             port=ENV.get('MONITOR_PORT', 8080),
-            scraping_enabled=ENABLE_SCRAPING,
+            scraping_enabled=True,
         )
         monitor.start()
 
