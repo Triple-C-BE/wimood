@@ -24,6 +24,9 @@ def init_logging_config(env_config: dict):
     resolved_level = resolve_log_level(GLOBAL_LOG_LEVEL)
     root_logger.setLevel(resolved_level)
 
+    # Suppress noisy urllib3 retry warnings — retries are handled by RequestManager
+    logging.getLogger("urllib3").setLevel(logging.ERROR)
+
     # Avoid duplicate handlers on re-init
     if not root_logger.hasHandlers():
         formatter = logging.Formatter(
