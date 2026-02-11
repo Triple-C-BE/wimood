@@ -68,6 +68,10 @@ def load_env_variables():
                 'FULL_SYNC_ON_STARTUP': get_env_var('FULL_SYNC_ON_STARTUP', default=True, var_type=bool, required=False),
                 'FULL_SYNC_INTERVAL_HOURS': get_env_var('FULL_SYNC_INTERVAL_HOURS', default=24, var_type=int, required=False),
 
+                # --- Monitoring ---
+                'ENABLE_MONITORING': get_env_var('ENABLE_MONITORING', default=False, var_type=bool, required=False),
+                'MONITOR_PORT': get_env_var('MONITOR_PORT', default=8080, var_type=int, required=False),
+
                 # --- Test Mode ---
                 'TEST_MODE': get_env_var('TEST_MODE', default=False, var_type=bool, required=False),
                 'TEST_PRODUCT_LIMIT': get_env_var('TEST_PRODUCT_LIMIT', default=5, var_type=int, required=False),

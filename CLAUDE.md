@@ -39,6 +39,7 @@ ruff check .
 - `request_manager.py`: `RequestManager` wraps `requests.Session` with retry logic (backoff, status code retries on 429/5xx), user-agent rotation from `config/user_agents.yaml`.
 - `scrape_cache.py`: `ScrapeCache` class provides JSON-file-based caching (`data/scrape_cache.json`) for scraped product data. Supports staleness checking (default 7 days). Uses atomic writes.
 - `formatter.py`: `format_seconds_to_human_readable()` for log messages.
+- `monitor.py`: `MonitorServer` class runs a lightweight HTTP server in a daemon thread. Serves JSON sync status at `GET /` or `/status`. Thread-safe state updates via `set_running()` and `update_status()`.
 
 **`tests/`** — Unit tests using pytest + pytest-mock.
 
@@ -48,7 +49,7 @@ Configured via `.env` file (loaded by python-dotenv). See `.env.example` for ful
 
 **Required:** `WIMOOD_API_KEY`, `WIMOOD_API_URL`, `WIMOOD_BASE_URL`, `WIMOOD_CUSTOMER_ID`, `SHOPIFY_STORE_URL`, `SHOPIFY_ACCESS_TOKEN`
 
-**Optional (with defaults):** `LOG_DIR` (logs), `LOG_LEVEL` (INFO), `LOG_TO_STDOUT` (true), `SYNC_INTERVAL_SECONDS` (3600), `MAX_SCRAPE_RETRIES` (5), `SHOPIFY_VENDOR_TAG` (Wimood_Sync), `ENABLE_SCRAPING` (false), `SCRAPE_DELAY_SECONDS` (2), `FULL_SYNC_ON_STARTUP` (true), `FULL_SYNC_INTERVAL_HOURS` (24), `TEST_MODE` (false), `TEST_PRODUCT_LIMIT` (5)
+**Optional (with defaults):** `LOG_DIR` (logs), `LOG_LEVEL` (INFO), `LOG_TO_STDOUT` (true), `SYNC_INTERVAL_SECONDS` (3600), `MAX_SCRAPE_RETRIES` (5), `SHOPIFY_VENDOR_TAG` (Wimood_Sync), `ENABLE_SCRAPING` (false), `SCRAPE_DELAY_SECONDS` (2), `FULL_SYNC_ON_STARTUP` (true), `FULL_SYNC_INTERVAL_HOURS` (24), `ENABLE_MONITORING` (false), `MONITOR_PORT` (8080), `TEST_MODE` (false), `TEST_PRODUCT_LIMIT` (5)
 
 ## Dependencies
 

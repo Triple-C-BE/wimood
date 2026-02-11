@@ -1,0 +1,89 @@
+import json
+import threading
+import time
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+from .logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class MonitorServer:
+    """Lightweight HTTP server that exposes sync status as JSON."""
+
+    def __init__(self, port=8080, scraping_enabled=False):
+        self._lock = threading.Lock()
+        self._port = port
+        self._start_time = time.time()
+        self._state = {
+            "status": "ok",
+            "last_sync": None,
+            "last_sync_duration_seconds": None,
+            "last_sync_mode": None,
+            "last_sync_results": None,
+            "next_sync_in_seconds": None,
+            "next_full_sync_in_seconds": None,
+            "uptime_seconds": 0,
+            "scraping_enabled": scraping_enabled,
+        }
+        self._server = None
+
+    def _build_response(self):
+        with self._lock:
+            snapshot = dict(self._state)
+        snapshot["uptime_seconds"] = round(time.time() - self._start_time, 1)
+        return snapshot
+
+    def start(self):
+        parent = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path not in ("/", "/status"):
+                    self.send_error(404)
+                    return
+                body = json.dumps(parent._build_response(), indent=2).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format, *args):
+                # Suppress default stderr logging
+                pass
+
+        try:
+            self._server = HTTPServer(("0.0.0.0", self._port), Handler)
+        except OSError as e:
+            logger.error(f"Failed to start monitor server on port {self._port}: {e}")
+            return
+
+        thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        thread.start()
+        logger.info(f"Monitor server started on port {self._port}.")
+
+    def set_running(self):
+        with self._lock:
+            self._state["status"] = "running"
+
+    def update_status(self, sync_results, duration, scrape_mode,
+                      next_sync_in=None, next_full_sync_in=None):
+        with self._lock:
+            errors = sync_results.get("errors", 0)
+            self._state["status"] = "error" if errors > 0 else "ok"
+            self._state["last_sync"] = datetime.now(timezone.utc).isoformat()
+            self._state["last_sync_duration_seconds"] = round(duration, 2)
+            self._state["last_sync_mode"] = scrape_mode
+            self._state["last_sync_results"] = {
+                "created": sync_results.get("created", 0),
+                "updated": sync_results.get("updated", 0),
+                "deactivated": sync_results.get("deactivated", 0),
+                "skipped": sync_results.get("skipped", 0),
+                "errors": errors,
+            }
+            if next_sync_in is not None:
+                self._state["next_sync_in_seconds"] = round(next_sync_in)
+            if next_full_sync_in is not None:
+                self._state["next_full_sync_in_seconds"] = round(next_full_sync_in)

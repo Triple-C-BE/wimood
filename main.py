@@ -4,6 +4,7 @@ import time
 from integrations import ShopifyAPI, WimoodAPI, WimoodScraper, sync_products
 from utils import (
     ImageDownloader,
+    MonitorServer,
     ProductMapping,
     ScrapeCache,
     format_seconds_to_human_readable,
@@ -105,7 +106,7 @@ def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scra
 
     except Exception as e:
         LOGGER.error(f"FATAL: Failed to fetch core data from Wimood API. Aborting sync: {e}")
-        return
+        return None, 0
 
     # Sync with Shopify (enrichment happens inside sync_products if scraper is provided)
     LOGGER.info("Starting synchronization with Shopify...")
@@ -121,7 +122,7 @@ def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scra
         )
     except Exception as e:
         LOGGER.error(f"FATAL: Failed to sync products to Shopify: {e}")
-        return
+        return None, 0
 
     # Finalize
     end_time = time.time()
@@ -136,6 +137,8 @@ def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scra
     LOGGER.info("--------------------------------------------------------------------")
     LOGGER.info(f"SYNC COMPLETE | Duration: {duration:.2f} seconds")
     LOGGER.info("====================================================================")
+
+    return sync_results, duration
 
 
 if __name__ == "__main__":
@@ -176,6 +179,15 @@ if __name__ == "__main__":
         LOGGER.warning("Disabling scraper due to failed pre-flight check.")
         scraper = None
 
+    # Start monitor server if enabled
+    monitor = None
+    if ENV.get('ENABLE_MONITORING', False):
+        monitor = MonitorServer(
+            port=ENV.get('MONITOR_PORT', 8080),
+            scraping_enabled=ENABLE_SCRAPING,
+        )
+        monitor.start()
+
     # Track when the last full sync was run
     FULL_SYNC_ON_STARTUP = ENV.get('FULL_SYNC_ON_STARTUP', True)
     if FULL_SYNC_ON_STARTUP:
@@ -198,8 +210,11 @@ if __name__ == "__main__":
         else:
             scrape_mode = "new_only"
 
+        if monitor:
+            monitor.set_running()
+
         try:
-            run_wimood_sync(
+            sync_results, duration = run_wimood_sync(
                 REQUEST_MANAGER,
                 wimood_api,
                 shopify_api,
@@ -214,6 +229,7 @@ if __name__ == "__main__":
 
         except Exception as main_e:
             LOGGER.exception(f"Unhandled critical exception in sync loop: {main_e}")
+            sync_results, duration = None, 0
 
         # Exit after single run if --full-sync flag was used
         if FULL_SYNC_FLAG:
@@ -221,6 +237,16 @@ if __name__ == "__main__":
             break
 
         next_full_in = FULL_SYNC_INTERVAL - (time.time() - last_full_sync)
+
+        if monitor and sync_results is not None:
+            monitor.update_status(
+                sync_results=sync_results,
+                duration=duration,
+                scrape_mode=scrape_mode,
+                next_sync_in=SYNC_INTERVAL,
+                next_full_sync_in=max(0, next_full_in),
+            )
+
         LOGGER.info(
             "Sync cycle complete. Next run in %s. Next full sync in %s.\n",
             sleep_display_time,
