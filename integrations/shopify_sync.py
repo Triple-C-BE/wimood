@@ -155,20 +155,12 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
                 # Ensure mapping exists for skipped products too
                 if product_mapping and wimood_product_id:
                     product_mapping.set_mapping(wimood_product_id, existing['id'], sku)
-
-                # Backfill cost for skipped products if not yet synced
-                if product_mapping and not product_mapping.is_cost_synced(sku):
-                    cost = product_data.get('wholesale_price', '')
-                    if shopify_api.set_cost_for_product(existing, cost):
-                        product_mapping.mark_cost_synced(sku)
         else:
             # New product — create it
             LOGGER.info("  -> CREATE")
             result = shopify_api.create_product(product_data)
             if result:
                 results['created'] += 1
-                if product_mapping:
-                    product_mapping.mark_cost_synced(sku)
             else:
                 results['errors'] += 1
 

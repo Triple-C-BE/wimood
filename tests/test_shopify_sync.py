@@ -1,9 +1,6 @@
-import os
-import tempfile
 from unittest.mock import MagicMock
 
 from integrations.shopify_sync import _needs_update, sync_products
-from utils.product_mapping import ProductMapping
 
 
 class TestNeedsUpdate:
@@ -139,54 +136,3 @@ class TestSyncProducts:
         # Should NOT have called scraper since cache is fresh
         scraper.scrape_product.assert_not_called()
         assert results['created'] == 1
-
-
-class TestCostBackfill:
-
-    def _make_shopify_api(self):
-        api = MagicMock()
-        api.get_all_products.return_value = []
-        api.create_product.return_value = {'id': 1}
-        api.update_product.return_value = {'id': 1}
-        api.deactivate_product.return_value = True
-        api.set_cost_for_product.return_value = True
-        return api
-
-    def _make_mapping(self):
-        fd, path = tempfile.mkstemp(suffix='.db')
-        os.close(fd)
-        return ProductMapping(path)
-
-    def test_cost_backfill_on_skipped_products(self, sample_wimood_product, sample_shopify_product):
-        """Skipped products that haven't had cost synced should get cost set."""
-        api = self._make_shopify_api()
-        api.get_all_products.return_value = [sample_shopify_product]
-        mapping = self._make_mapping()
-
-        results = sync_products([sample_wimood_product], api, product_mapping=mapping)
-
-        assert results['skipped'] == 1
-        api.set_cost_for_product.assert_called_once()
-        assert mapping.is_cost_synced('WM-TEST-001') is True
-
-    def test_cost_not_set_twice(self, sample_wimood_product, sample_shopify_product):
-        """Products with cost already synced should not get cost set again."""
-        api = self._make_shopify_api()
-        api.get_all_products.return_value = [sample_shopify_product]
-        mapping = self._make_mapping()
-        mapping.mark_cost_synced('WM-TEST-001')
-
-        results = sync_products([sample_wimood_product], api, product_mapping=mapping)
-
-        assert results['skipped'] == 1
-        api.set_cost_for_product.assert_not_called()
-
-    def test_cost_marked_on_create(self, sample_wimood_product):
-        """Newly created products should have cost marked as synced."""
-        api = self._make_shopify_api()
-        mapping = self._make_mapping()
-
-        results = sync_products([sample_wimood_product], api, product_mapping=mapping)
-
-        assert results['created'] == 1
-        assert mapping.is_cost_synced('WM-TEST-001') is True

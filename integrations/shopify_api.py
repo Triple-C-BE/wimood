@@ -474,18 +474,6 @@ class ShopifyAPI:
         if cost and str(cost).strip() and str(cost) != '0.00':
             self._set_inventory_item_cost(inventory_item_id, cost)
 
-    def set_cost_for_product(self, shopify_product: Dict, cost: str) -> bool:
-        """Set cost on a product's first variant. Returns True on success."""
-        variants = shopify_product.get('variants', [])
-        if not variants:
-            return False
-        inventory_item_id = variants[0].get('inventory_item_id')
-        if not inventory_item_id:
-            return False
-        if not cost or str(cost).strip() == '' or str(cost) == '0.00':
-            return False
-        return self._set_inventory_item_cost(inventory_item_id, cost)
-
     def _set_inventory_item_cost(self, inventory_item_id: int, cost: str):
         """Set the cost (wholesale price) on an inventory item."""
         payload = {

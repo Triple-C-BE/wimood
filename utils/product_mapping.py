@@ -33,12 +33,6 @@ class ProductMapping:
             ''')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_sku ON product_mapping(sku)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_shopify_id ON product_mapping(shopify_product_id)')
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS cost_sync_status (
-                    sku TEXT PRIMARY KEY,
-                    synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
         LOGGER.info(f"Product mapping database initialized at {self.db_file}")
 
     def get_shopify_id(self, wimood_product_id: str) -> Optional[int]:
@@ -100,22 +94,6 @@ class ProductMapping:
         if deleted:
             LOGGER.debug(f"Removed mapping for Wimood product {wimood_product_id}")
         return deleted
-
-    def is_cost_synced(self, sku: str) -> bool:
-        """Check if cost has been synced for a product."""
-        with sqlite3.connect(self.db_file) as conn:
-            row = conn.execute(
-                'SELECT 1 FROM cost_sync_status WHERE sku = ?', (sku,)
-            ).fetchone()
-        return row is not None
-
-    def mark_cost_synced(self, sku: str):
-        """Mark a product's cost as synced."""
-        with sqlite3.connect(self.db_file) as conn:
-            conn.execute(
-                'INSERT OR REPLACE INTO cost_sync_status (sku, synced_at) VALUES (?, CURRENT_TIMESTAMP)',
-                (sku,)
-            )
 
     def __bool__(self):
         """ProductMapping is always truthy when instantiated."""

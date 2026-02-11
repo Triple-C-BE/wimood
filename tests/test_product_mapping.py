@@ -91,38 +91,3 @@ class TestProductMapping:
         assert len(mapping) == 1
         mapping.set_mapping('WIM2', 200, 'SKU-2')
         assert len(mapping) == 2
-
-
-class TestCostSyncStatus:
-
-    @pytest.fixture
-    def temp_db(self):
-        fd, path = tempfile.mkstemp(suffix='.db')
-        os.close(fd)
-        yield path
-        if os.path.exists(path):
-            os.remove(path)
-
-    def test_is_cost_synced_nonexistent(self, temp_db):
-        mapping = ProductMapping(temp_db)
-        assert mapping.is_cost_synced('NONEXISTENT') is False
-
-    def test_mark_and_check_cost_synced(self, temp_db):
-        mapping = ProductMapping(temp_db)
-        assert mapping.is_cost_synced('SKU-1') is False
-        mapping.mark_cost_synced('SKU-1')
-        assert mapping.is_cost_synced('SKU-1') is True
-
-    def test_mark_cost_synced_idempotent(self, temp_db):
-        mapping = ProductMapping(temp_db)
-        mapping.mark_cost_synced('SKU-1')
-        mapping.mark_cost_synced('SKU-1')  # Should not error
-        assert mapping.is_cost_synced('SKU-1') is True
-
-    def test_multiple_skus(self, temp_db):
-        mapping = ProductMapping(temp_db)
-        mapping.mark_cost_synced('SKU-1')
-        assert mapping.is_cost_synced('SKU-1') is True
-        assert mapping.is_cost_synced('SKU-2') is False
-        mapping.mark_cost_synced('SKU-2')
-        assert mapping.is_cost_synced('SKU-2') is True

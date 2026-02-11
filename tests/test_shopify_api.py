@@ -218,25 +218,6 @@ class TestShopifyAPI:
         result = api._set_inventory_item_cost(12345, '10.00')
         assert result is True
 
-    def test_set_cost_for_product(self, sample_env, mock_request_manager, sample_shopify_product):
-        """Test the public set_cost_for_product method."""
-        success_resp = MagicMock()
-        success_resp.status_code = 200
-        success_resp.json.return_value = {'inventory_item': {'id': 77777, 'cost': '149.99'}}
-        success_resp.headers = {}
-
-        mock_request_manager.request.return_value = success_resp
-
-        api = self._make_api(sample_env, mock_request_manager)
-        result = api.set_cost_for_product(sample_shopify_product, '149.99')
-        assert result is True
-
-    def test_set_cost_for_product_no_cost(self, sample_env, mock_request_manager, sample_shopify_product):
-        """Test that set_cost_for_product returns False for empty/zero cost."""
-        api = self._make_api(sample_env, mock_request_manager)
-        assert api.set_cost_for_product(sample_shopify_product, '') is False
-        assert api.set_cost_for_product(sample_shopify_product, '0.00') is False
-
     def test_build_metafields(self, sample_env, mock_request_manager, sample_enriched_product):
         api = self._make_api(sample_env, mock_request_manager)
         metafields = api._build_metafields(sample_enriched_product)
