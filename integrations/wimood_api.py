@@ -116,8 +116,8 @@ class WimoodAPI:
                     'title': element.findtext('product_name', default=''),
                     'brand': element.findtext('brand', default=''),
                     'ean': element.findtext('ean', default='').strip(),
-                    'price': element.findtext('prijs', default='0.00'),
-                    'msrp': element.findtext('msrp', default='0.00'),
+                    'price': element.findtext('msrp', default='0.00'),
+                    'wholesale_price': element.findtext('prijs', default='0.00'),
                     'stock': element.findtext('stock', default='0'),
                 }
                 API_LOGGER.debug(f"Parsed product: {product}")

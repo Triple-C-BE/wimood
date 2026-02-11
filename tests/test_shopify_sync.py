@@ -13,7 +13,7 @@ class TestNeedsUpdate:
         assert _needs_update(sample_shopify_product, sample_wimood_product) is True
 
     def test_price_changed(self, sample_shopify_product, sample_wimood_product):
-        sample_wimood_product['price'] = '199.99'
+        sample_wimood_product['price'] = '249.99'
         assert _needs_update(sample_shopify_product, sample_wimood_product) is True
 
     def test_inactive_status(self, sample_shopify_product, sample_wimood_product):
@@ -70,7 +70,7 @@ class TestSyncProducts:
         api.create_product.assert_not_called()
 
     def test_update_changed_products(self, sample_wimood_product, sample_shopify_product):
-        sample_wimood_product['price'] = '199.99'
+        sample_wimood_product['price'] = '249.99'
         api = self._make_shopify_api()
         api.get_all_products.return_value = [sample_shopify_product]
 

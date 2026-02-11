@@ -98,7 +98,7 @@ def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scra
                     f"Brand={p.get('brand', '')} | "
                     f"EAN={p.get('ean', '')} | "
                     f"Price={p.get('price', '0.00')} | "
-                    f"MSRP={p.get('msrp', '0.00')} | "
+                    f"Wholesale={p.get('wholesale_price', '0.00')} | "
                     f"Stock={p.get('stock', '0')}"
                 )
             LOGGER.info("---------------------------------")

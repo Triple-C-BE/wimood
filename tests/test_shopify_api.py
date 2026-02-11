@@ -125,7 +125,7 @@ class TestShopifyAPI:
         assert product_payload['vendor'] == 'TestBrand'
         assert 'body_html' in product_payload
         # Variant price is included inline
-        assert product_payload['variants'][0]['price'] == '149.99'
+        assert product_payload['variants'][0]['price'] == '199.99'
         # local_images is empty in fixture, so no images in payload
         assert 'images' not in product_payload
 
@@ -187,7 +187,7 @@ class TestShopifyAPI:
         keys = [m['key'] for m in metafields]
         assert 'brand' in keys
         assert 'ean' in keys
-        assert 'msrp' in keys
+        assert 'wholesale_price' in keys
         assert 'specs' in keys
 
         specs_field = next(m for m in metafields if m['key'] == 'specs')

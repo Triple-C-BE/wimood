@@ -32,8 +32,8 @@ class TestWimoodAPI:
         assert p1['title'] == 'Test Bureaustoel Deluxe'
         assert p1['brand'] == 'TestBrand'
         assert p1['ean'] == '8712345678901'
-        assert p1['price'] == '149.99'
-        assert p1['msrp'] == '199.99'
+        assert p1['price'] == '199.99'
+        assert p1['wholesale_price'] == '149.99'
         assert p1['stock'] == '10'
 
         p2 = products[1]

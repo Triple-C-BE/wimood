@@ -154,7 +154,7 @@ class ShopifyAPI:
 
         Args:
             product_data: Dict with keys: sku, title, price, stock
-                Optional enriched keys: body_html, images, ean, msrp, specs, brand
+                Optional enriched keys: body_html, images, ean, wholesale_price, specs, brand
 
         Returns:
             Created Shopify product dict, or None on failure.
@@ -390,12 +390,12 @@ class ShopifyAPI:
                 "type": "single_line_text_field",
             })
 
-        msrp = product_data.get('msrp', '').strip() if isinstance(product_data.get('msrp'), str) else str(product_data.get('msrp', ''))
-        if msrp and msrp != '0.00':
+        wholesale_price = product_data.get('wholesale_price', '').strip() if isinstance(product_data.get('wholesale_price'), str) else str(product_data.get('wholesale_price', ''))
+        if wholesale_price and wholesale_price != '0.00':
             metafields.append({
                 "namespace": "wimood",
-                "key": "msrp",
-                "value": msrp,
+                "key": "wholesale_price",
+                "value": wholesale_price,
                 "type": "single_line_text_field",
             })
 

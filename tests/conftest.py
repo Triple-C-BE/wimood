@@ -13,8 +13,8 @@ def sample_wimood_product():
         'title': 'Test Bureaustoel Deluxe',
         'brand': 'TestBrand',
         'ean': '8712345678901',
-        'price': '149.99',
-        'msrp': '199.99',
+        'price': '199.99',
+        'wholesale_price': '149.99',
         'stock': '10',
     }
 
@@ -52,7 +52,7 @@ def sample_shopify_product():
             {
                 'id': 88888,
                 'sku': 'WM-TEST-001',
-                'price': '149.99',
+                'price': '199.99',
                 'inventory_item_id': 77777,
             }
         ],
