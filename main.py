@@ -177,7 +177,13 @@ if __name__ == "__main__":
         scraper = None
 
     # Track when the last full sync was run
-    last_full_sync = 0  # Force full sync on first run if --full-sync
+    FULL_SYNC_ON_STARTUP = ENV.get('FULL_SYNC_ON_STARTUP', True)
+    if FULL_SYNC_ON_STARTUP:
+        last_full_sync = 0  # Force full sync on first run
+        LOGGER.info("Full sync on startup is ENABLED.")
+    else:
+        last_full_sync = time.time()  # Pretend a full sync just happened
+        LOGGER.info("Full sync on startup is DISABLED. First run will use 'new_only' mode.")
 
     while True:
         # Determine scrape mode for this cycle
