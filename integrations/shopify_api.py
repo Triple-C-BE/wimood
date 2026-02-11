@@ -485,11 +485,11 @@ class ShopifyAPI:
 
         self._rate_limit()
         url = f"{self.base_url}/inventory_items/{inventory_item_id}.json"
-        LOGGER.debug(f"PUT {url} — cost={cost}")
+        LOGGER.info(f"  Setting cost={cost} on inventory item {inventory_item_id}")
         response = self._request('PUT', url, json=payload)
 
         if response is None:
-            LOGGER.warning(f"Failed to set cost for inventory item {inventory_item_id}")
+            LOGGER.error(f"  Failed to set cost for inventory item {inventory_item_id}")
         elif response:
-            LOGGER.debug(f"Cost set response status: {response.status_code}")
+            LOGGER.info(f"  Cost set OK (status {response.status_code})")
             self._log_rate_limit(response)
