@@ -91,3 +91,86 @@ class TestProductMapping:
         assert len(mapping) == 1
         mapping.set_mapping('WIM2', 200, 'SKU-2')
         assert len(mapping) == 2
+
+
+class TestSyncedProducts:
+
+    @pytest.fixture
+    def temp_db(self):
+        fd, path = tempfile.mkstemp(suffix='.db')
+        os.close(fd)
+        yield path
+        if os.path.exists(path):
+            os.remove(path)
+
+    def test_get_synced_product_not_found(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        assert mapping.get_synced_product('NONEXISTENT') is None
+
+    def test_set_and_get_synced_product(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        mapping.set_synced_product('SKU-1', 'Title', '19.99', '10.00', '5', 'Brand', '123', False)
+        result = mapping.get_synced_product('SKU-1')
+        assert result is not None
+        assert result['sku'] == 'SKU-1'
+        assert result['title'] == 'Title'
+        assert result['price'] == '19.99'
+        assert result['wholesale_price'] == '10.00'
+        assert result['stock'] == '5'
+        assert result['brand'] == 'Brand'
+        assert result['ean'] == '123'
+        assert result['cost_synced'] == 0
+
+    def test_upsert_synced_product(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        mapping.set_synced_product('SKU-1', 'Title', '19.99', '10.00', '5', 'Brand', '123', False)
+        mapping.set_synced_product('SKU-1', 'New Title', '29.99', '15.00', '10', 'Brand', '123', True)
+        result = mapping.get_synced_product('SKU-1')
+        assert result['title'] == 'New Title'
+        assert result['price'] == '29.99'
+        assert result['cost_synced'] == 1
+
+    def test_has_product_changed_new_product(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        assert mapping.has_product_changed('SKU-1', {'title': 'T', 'price': '1', 'stock': '1'}) is True
+
+    def test_has_product_changed_no_change(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        mapping.set_synced_product('SKU-1', 'Title', '19.99', '10.00', '5', 'Brand', '123', True)
+        assert mapping.has_product_changed('SKU-1', {'title': 'Title', 'price': '19.99', 'stock': '5'}) is False
+
+    def test_has_product_changed_title_changed(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        mapping.set_synced_product('SKU-1', 'Title', '19.99', '10.00', '5', 'Brand', '123', True)
+        assert mapping.has_product_changed('SKU-1', {'title': 'New Title', 'price': '19.99', 'stock': '5'}) is True
+
+    def test_has_product_changed_price_changed(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        mapping.set_synced_product('SKU-1', 'Title', '19.99', '10.00', '5', 'Brand', '123', True)
+        assert mapping.has_product_changed('SKU-1', {'title': 'Title', 'price': '29.99', 'stock': '5'}) is True
+
+    def test_has_product_changed_stock_changed(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        mapping.set_synced_product('SKU-1', 'Title', '19.99', '10.00', '5', 'Brand', '123', True)
+        assert mapping.has_product_changed('SKU-1', {'title': 'Title', 'price': '19.99', 'stock': '10'}) is True
+
+    def test_is_cost_synced_false(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        mapping.set_synced_product('SKU-1', 'Title', '19.99', '10.00', '5', 'Brand', '123', False)
+        assert mapping.is_cost_synced('SKU-1') is False
+
+    def test_is_cost_synced_true(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        mapping.set_synced_product('SKU-1', 'Title', '19.99', '10.00', '5', 'Brand', '123', True)
+        assert mapping.is_cost_synced('SKU-1') is True
+
+    def test_is_cost_synced_nonexistent(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        assert mapping.is_cost_synced('NONEXISTENT') is False
+
+    def test_mark_cost_synced(self, temp_db):
+        mapping = ProductMapping(temp_db)
+        mapping.set_synced_product('SKU-1', 'Title', '19.99', '10.00', '5', 'Brand', '123', False)
+        assert mapping.is_cost_synced('SKU-1') is False
+        mapping.mark_cost_synced('SKU-1')
+        assert mapping.is_cost_synced('SKU-1') is True

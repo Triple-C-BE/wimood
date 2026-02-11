@@ -88,6 +88,29 @@ class ShopifyAPI:
             return self._get_products_by_mapping()
         return self._get_products_by_vendor_tag()
 
+    def get_products_by_ids(self, shopify_ids: List[int]) -> List[Dict]:
+        """Fetch specific products by their Shopify IDs."""
+        if not shopify_ids:
+            return []
+
+        LOGGER.info(f"Fetching {len(shopify_ids)} products by ID...")
+        products = []
+        batch_size = 250
+        for i in range(0, len(shopify_ids), batch_size):
+            batch = shopify_ids[i:i + batch_size]
+            ids_param = ','.join(str(pid) for pid in batch)
+            url = f"{self.base_url}/products.json?ids={ids_param}&limit=250"
+
+            self._rate_limit()
+            response = self._request('GET', url)
+            if response:
+                self._log_rate_limit(response)
+                data = response.json()
+                products.extend(data.get('products', []))
+
+        LOGGER.info(f"Fetched {len(products)} products by ID from Shopify.")
+        return products
+
     def _get_products_by_mapping(self) -> List[Dict]:
         """Fetch products by their mapped Shopify IDs."""
         shopify_ids = self.product_mapping.get_all_shopify_ids()
@@ -474,6 +497,18 @@ class ShopifyAPI:
         if cost and str(cost).strip() and str(cost) != '0.00':
             self._set_inventory_item_cost(inventory_item_id, cost)
 
+    def set_cost_for_product(self, shopify_product: Dict, cost: str) -> bool:
+        """Set cost on a product's first variant. Returns True on success."""
+        variants = shopify_product.get('variants', [])
+        if not variants:
+            return False
+        inventory_item_id = variants[0].get('inventory_item_id')
+        if not inventory_item_id:
+            return False
+        if not cost or str(cost).strip() == '' or str(cost) == '0.00':
+            return False
+        return self._set_inventory_item_cost(inventory_item_id, cost)
+
     def _set_inventory_item_cost(self, inventory_item_id: int, cost: str):
         """Set the cost (wholesale price) on an inventory item."""
         payload = {
@@ -490,6 +525,13 @@ class ShopifyAPI:
 
         if response is None:
             LOGGER.error(f"  Failed to set cost for inventory item {inventory_item_id}")
-        elif response:
-            LOGGER.info(f"  Cost set OK (status {response.status_code})")
-            self._log_rate_limit(response)
+            return False
+
+        self._log_rate_limit(response)
+        data = response.json()
+        if 'errors' in data:
+            LOGGER.error(f"  Shopify error setting cost for inventory item {inventory_item_id}: {data['errors']}")
+            return False
+
+        LOGGER.info(f"  Cost set OK (status {response.status_code})")
+        return True
