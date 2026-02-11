@@ -427,6 +427,43 @@ class ShopifyAPI:
                 LOGGER.warning(f"Failed to encode image: {filepath}")
         return payloads
 
+    def fetch_inventory_item_costs(self, shopify_products: List[Dict]) -> Dict[int, str]:
+        """
+        Batch-fetch cost for all inventory items from a list of Shopify products.
+        Returns a dict mapping inventory_item_id -> cost string.
+        """
+        # Collect all inventory_item_ids
+        item_ids = []
+        for product in shopify_products:
+            for variant in product.get('variants', []):
+                iid = variant.get('inventory_item_id')
+                if iid:
+                    item_ids.append(iid)
+
+        if not item_ids:
+            return {}
+
+        LOGGER.info(f"Fetching costs for {len(item_ids)} inventory items...")
+        costs = {}
+        batch_size = 100
+        for i in range(0, len(item_ids), batch_size):
+            batch = item_ids[i:i + batch_size]
+            ids_param = ','.join(str(iid) for iid in batch)
+            url = f"{self.base_url}/inventory_items.json?ids={ids_param}&limit=100"
+
+            self._rate_limit()
+            response = self._request('GET', url)
+            if response:
+                self._log_rate_limit(response)
+                data = response.json()
+                for item in data.get('inventory_items', []):
+                    cost = item.get('cost')
+                    if cost is not None:
+                        costs[item['id']] = str(cost)
+
+        LOGGER.info(f"Fetched costs for {len(costs)} inventory items.")
+        return costs
+
     def _set_inventory_level(self, shopify_product: Dict, quantity: int, cost=None):
         """
         Set inventory quantity and cost for a product's first variant.
@@ -485,18 +522,18 @@ class ShopifyAPI:
 
         self._rate_limit()
         url = f"{self.base_url}/inventory_items/{inventory_item_id}.json"
-        LOGGER.info(f"  Setting cost={cost} on inventory item {inventory_item_id}")
+        LOGGER.debug(f"Setting cost={cost} on inventory item {inventory_item_id}")
         response = self._request('PUT', url, json=payload)
 
         if response is None:
-            LOGGER.error(f"  Failed to set cost for inventory item {inventory_item_id}")
+            LOGGER.error(f"Failed to set cost for inventory item {inventory_item_id}")
             return False
 
         self._log_rate_limit(response)
         data = response.json()
         if 'errors' in data:
-            LOGGER.error(f"  Shopify error setting cost for inventory item {inventory_item_id}: {data['errors']}")
+            LOGGER.error(f"Shopify error setting cost for inventory item {inventory_item_id}: {data['errors']}")
             return False
 
-        LOGGER.info(f"  Cost set OK (status {response.status_code})")
+        LOGGER.debug(f"Cost set OK (status {response.status_code})")
         return True

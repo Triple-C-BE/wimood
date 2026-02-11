@@ -63,7 +63,6 @@ def load_env_variables():
                 'SHOPIFY_VENDOR_TAG': get_env_var('SHOPIFY_VENDOR_TAG', default='Wimood_Sync', required=False),
 
                 # --- Scraping ---
-                'ENABLE_SCRAPING': get_env_var('ENABLE_SCRAPING', default=False, var_type=bool, required=False),
                 'SCRAPE_DELAY_SECONDS': get_env_var('SCRAPE_DELAY_SECONDS', default=2, var_type=int, required=False),
                 'FULL_SYNC_ON_STARTUP': get_env_var('FULL_SYNC_ON_STARTUP', default=True, var_type=bool, required=False),
                 'FULL_SYNC_INTERVAL_HOURS': get_env_var('FULL_SYNC_INTERVAL_HOURS', default=24, var_type=int, required=False),

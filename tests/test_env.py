@@ -82,7 +82,6 @@ class TestLoadEnvVariables:
         assert env['LOG_LEVEL'] == 'INFO'
         assert env['SYNC_INTERVAL_SECONDS'] == 3600
         assert env['TEST_MODE'] is False
-        assert env['ENABLE_SCRAPING'] is False
         assert env['SCRAPE_DELAY_SECONDS'] == 2
 
     @patch('utils.env.load_dotenv')
@@ -93,12 +92,10 @@ class TestLoadEnvVariables:
         'WIMOOD_CUSTOMER_ID': 'CUST001',
         'SHOPIFY_STORE_URL': 'https://store.myshopify.com',
         'SHOPIFY_ACCESS_TOKEN': 'shpat_test',
-        'ENABLE_SCRAPING': 'true',
         'SCRAPE_DELAY_SECONDS': '5',
     }, clear=True)
     def test_scraping_vars(self, mock_dotenv):
         env = load_env_variables()
-        assert env['ENABLE_SCRAPING'] is True
         assert env['SCRAPE_DELAY_SECONDS'] == 5
 
     @patch('utils.env.load_dotenv')

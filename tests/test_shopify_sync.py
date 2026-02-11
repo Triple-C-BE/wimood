@@ -40,12 +40,28 @@ class TestNeedsUpdate:
         sample_shopify_product['images'] = [{'src': 'img1.jpg'}]
         assert _needs_update(sample_shopify_product, sample_wimood_product) is False
 
+    def test_cost_changed(self, sample_shopify_product, sample_wimood_product):
+        sample_shopify_product['variants'][0]['cost'] = '100.00'
+        sample_wimood_product['wholesale_price'] = '149.99'
+        assert _needs_update(sample_shopify_product, sample_wimood_product) is True
+
+    def test_cost_removed_on_shopify(self, sample_shopify_product, sample_wimood_product):
+        sample_shopify_product['variants'][0]['cost'] = None
+        sample_wimood_product['wholesale_price'] = '149.99'
+        assert _needs_update(sample_shopify_product, sample_wimood_product) is True
+
+    def test_cost_matches(self, sample_shopify_product, sample_wimood_product):
+        sample_shopify_product['variants'][0]['cost'] = '149.99'
+        sample_wimood_product['wholesale_price'] = '149.99'
+        assert _needs_update(sample_shopify_product, sample_wimood_product) is False
+
 
 class TestSyncProducts:
 
     def _make_shopify_api(self):
         api = MagicMock()
         api.get_all_products.return_value = []
+        api.fetch_inventory_item_costs.return_value = {}
         api.create_product.return_value = {'id': 1}
         api.update_product.return_value = {'id': 1}
         api.deactivate_product.return_value = True

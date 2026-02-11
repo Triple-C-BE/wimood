@@ -53,6 +53,7 @@ def sample_shopify_product():
                 'id': 88888,
                 'sku': 'WM-TEST-001',
                 'price': '199.99',
+                'cost': '149.99',
                 'inventory_item_id': 77777,
             }
         ],
@@ -80,7 +81,6 @@ def sample_env():
         'SHOPIFY_VENDOR_TAG': 'Wimood_Sync',
         'SYNC_INTERVAL_SECONDS': 3600,
         'MAX_SCRAPE_RETRIES': 5,
-        'ENABLE_SCRAPING': True,
         'SCRAPE_DELAY_SECONDS': 0,  # No delay in tests
         'LOG_DIR': 'logs',
         'LOG_LEVEL': 'DEBUG',

@@ -83,6 +83,14 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
     LOGGER.info("Fetching existing Shopify products...")
     shopify_products = shopify_api.get_all_products()
 
+    # 1b. Fetch inventory item costs and attach to products
+    cost_map = shopify_api.fetch_inventory_item_costs(shopify_products)
+    for product in shopify_products:
+        for variant in product.get('variants', []):
+            iid = variant.get('inventory_item_id')
+            if iid and iid in cost_map:
+                variant['cost'] = cost_map[iid]
+
     # 2. Build SKU -> Shopify product lookup and ID -> product lookup
     shopify_sku_map = {}
     shopify_id_map = {}
@@ -107,13 +115,14 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
         sku = product_data.get('sku', '')
         title = product_data.get('title', '')
         price = product_data.get('price', '0.00')
+        cost = product_data.get('wholesale_price', '0.00')
         stock = product_data.get('stock', '0')
         has_images = len(product_data.get('local_images', product_data.get('images', [])))
         has_desc = bool(product_data.get('body_html', ''))
 
         LOGGER.info(
             f"[{idx}/{total}] SKU={sku} | {title} | "
-            f"Price={price} | Stock={stock} | "
+            f"Price={price} | Cost={cost} | Stock={stock} | "
             f"Images={has_images} | Desc={'yes' if has_desc else 'no'}"
         )
 
@@ -209,6 +218,11 @@ def _describe_changes(shopify_product: Dict, wimood_product: Dict) -> str:
         if shopify_price != wimood_price:
             changes.append(f"price changed: {shopify_price} -> {wimood_price}")
 
+        shopify_cost = _normalize_price(variants[0].get('cost', '0.00'))
+        wimood_cost = _normalize_price(wimood_product.get('wholesale_price', '0.00'))
+        if wimood_cost != '0.00' and shopify_cost != wimood_cost:
+            changes.append(f"cost changed: {shopify_cost} -> {wimood_cost}")
+
     if shopify_product.get('status') != 'active':
         changes.append(f"status: {shopify_product.get('status')} -> active")
 
@@ -246,6 +260,13 @@ def _needs_update(shopify_product: Dict, wimood_product: Dict) -> bool:
         wimood_price = _normalize_price(wimood_product.get('price', '0.00'))
         if shopify_price != wimood_price:
             LOGGER.debug(f"[{sku}] Price differs: Shopify='{shopify_price}' vs Wimood='{wimood_price}'")
+            return True
+
+        # Check cost (wholesale price)
+        shopify_cost = _normalize_price(variants[0].get('cost', '0.00'))
+        wimood_cost = _normalize_price(wimood_product.get('wholesale_price', '0.00'))
+        if wimood_cost != '0.00' and shopify_cost != wimood_cost:
+            LOGGER.debug(f"[{sku}] Cost differs: Shopify='{shopify_cost}' vs Wimood='{wimood_cost}'")
             return True
 
     # Check if product is not active (should be reactivated)

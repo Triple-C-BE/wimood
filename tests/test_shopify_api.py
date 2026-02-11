@@ -218,6 +218,30 @@ class TestShopifyAPI:
         result = api._set_inventory_item_cost(12345, '10.00')
         assert result is True
 
+    def test_fetch_inventory_item_costs(self, sample_env, mock_request_manager, sample_shopify_product):
+        """Test batch-fetching inventory item costs."""
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {
+            'inventory_items': [
+                {'id': 77777, 'cost': '149.99'},
+            ]
+        }
+        resp.headers = {}
+        mock_request_manager.request.return_value = resp
+
+        api = self._make_api(sample_env, mock_request_manager)
+        costs = api.fetch_inventory_item_costs([sample_shopify_product])
+
+        assert costs == {77777: '149.99'}
+
+    def test_fetch_inventory_item_costs_empty(self, sample_env, mock_request_manager):
+        """Test with no products returns empty dict."""
+        api = self._make_api(sample_env, mock_request_manager)
+        costs = api.fetch_inventory_item_costs([])
+        assert costs == {}
+        mock_request_manager.request.assert_not_called()
+
     def test_build_metafields(self, sample_env, mock_request_manager, sample_enriched_product):
         api = self._make_api(sample_env, mock_request_manager)
         metafields = api._build_metafields(sample_enriched_product)
