@@ -111,14 +111,14 @@ class WimoodAPI:
         for element in product_elements:
             try:
                 product = {
-                    'product_id': element.findtext('product_id', default=''),
-                    'sku': element.findtext('product_code', default=''),
-                    'title': element.findtext('product_name', default=''),
-                    'brand': element.findtext('brand', default=''),
+                    'product_id': element.findtext('product_id', default='').strip(),
+                    'sku': element.findtext('product_code', default='').strip(),
+                    'title': element.findtext('product_name', default='').strip(),
+                    'brand': element.findtext('brand', default='').strip(),
                     'ean': element.findtext('ean', default='').strip(),
-                    'price': element.findtext('msrp', default='0.00'),
-                    'wholesale_price': element.findtext('prijs', default='0.00'),
-                    'stock': element.findtext('stock', default='0'),
+                    'price': element.findtext('msrp', default='0.00').strip(),
+                    'wholesale_price': element.findtext('prijs', default='0.00').strip(),
+                    'stock': element.findtext('stock', default='0').strip(),
                 }
                 API_LOGGER.debug(f"Parsed product: {product}")
                 products_data.append(product)
