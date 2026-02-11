@@ -230,7 +230,8 @@ class ShopifyAPI:
                 self.product_mapping.set_mapping(
                     product_data['product_id'], created['id'], product_data['sku']
                 )
-            self._set_inventory_level(created, int(product_data.get('stock', 0)))
+            self._set_inventory_level(created, int(product_data.get('stock', 0)),
+                                     cost=product_data.get('wholesale_price'))
         return created
 
     def update_product(self, shopify_product_id: int, product_data: Dict,
@@ -310,7 +311,8 @@ class ShopifyAPI:
                 f"images={len(updated_images)}, "
                 f"status={updated.get('status')}"
             )
-            self._set_inventory_level(updated, int(product_data.get('stock', 0)))
+            self._set_inventory_level(updated, int(product_data.get('stock', 0)),
+                                     cost=product_data.get('wholesale_price'))
         return updated
 
     def deactivate_product(self, shopify_product_id: int) -> bool:
@@ -425,10 +427,11 @@ class ShopifyAPI:
                 LOGGER.warning(f"Failed to encode image: {filepath}")
         return payloads
 
-    def _set_inventory_level(self, shopify_product: Dict, quantity: int):
+    def _set_inventory_level(self, shopify_product: Dict, quantity: int, cost=None):
         """
-        Set inventory quantity for a product's first variant.
-        Uses the inventory_levels/set endpoint.
+        Set inventory quantity and cost for a product's first variant.
+        Uses the inventory_levels/set endpoint for quantity and
+        inventory_items/{id}.json for cost.
         """
         variants = shopify_product.get('variants', [])
         if not variants:
@@ -465,4 +468,28 @@ class ShopifyAPI:
             LOGGER.warning(f"Failed to set inventory for item {inventory_item_id}")
         elif response:
             LOGGER.debug(f"Inventory set response status: {response.status_code}")
+            self._log_rate_limit(response)
+
+        # Set cost (wholesale price) on the inventory item
+        if cost and str(cost).strip() and str(cost) != '0.00':
+            self._set_inventory_item_cost(inventory_item_id, cost)
+
+    def _set_inventory_item_cost(self, inventory_item_id: int, cost: str):
+        """Set the cost (wholesale price) on an inventory item."""
+        payload = {
+            "inventory_item": {
+                "id": inventory_item_id,
+                "cost": str(cost),
+            }
+        }
+
+        self._rate_limit()
+        url = f"{self.base_url}/inventory_items/{inventory_item_id}.json"
+        LOGGER.debug(f"PUT {url} — cost={cost}")
+        response = self._request('PUT', url, json=payload)
+
+        if response is None:
+            LOGGER.warning(f"Failed to set cost for inventory item {inventory_item_id}")
+        elif response:
+            LOGGER.debug(f"Cost set response status: {response.status_code}")
             self._log_rate_limit(response)

@@ -23,7 +23,7 @@ class TestShopifyAPI:
         mock_response.text = json.dumps({'product': created_product})
         mock_response.headers = {}
 
-        # First call: create product, second call: locations, third call: inventory set
+        # Calls: create product, locations, inventory set, cost set
         locations_resp = MagicMock()
         locations_resp.json.return_value = {'locations': [{'id': 111}]}
         locations_resp.headers = {}
@@ -33,7 +33,11 @@ class TestShopifyAPI:
         inv_resp.status_code = 200
         inv_resp.headers = {}
 
-        mock_request_manager.request.side_effect = [mock_response, locations_resp, inv_resp]
+        cost_resp = MagicMock()
+        cost_resp.status_code = 200
+        cost_resp.headers = {}
+
+        mock_request_manager.request.side_effect = [mock_response, locations_resp, inv_resp, cost_resp]
 
         api = self._make_api(sample_env, mock_request_manager)
         result = api.create_product(sample_wimood_product)
@@ -68,7 +72,11 @@ class TestShopifyAPI:
         inv_resp.status_code = 200
         inv_resp.headers = {}
 
-        mock_request_manager.request.side_effect = [mock_response, locations_resp, inv_resp]
+        cost_resp = MagicMock()
+        cost_resp.status_code = 200
+        cost_resp.headers = {}
+
+        mock_request_manager.request.side_effect = [mock_response, locations_resp, inv_resp, cost_resp]
 
         api = self._make_api(sample_env, mock_request_manager)
         result = api.create_product(sample_enriched_product)
@@ -101,7 +109,7 @@ class TestShopifyAPI:
         update_resp.text = '{}'
         update_resp.headers = {}
 
-        # GET locations + POST inventory
+        # GET locations + POST inventory + PUT cost
         locations_resp = MagicMock()
         locations_resp.json.return_value = {'locations': [{'id': 111}]}
         locations_resp.headers = {}
@@ -110,7 +118,11 @@ class TestShopifyAPI:
         inv_resp.status_code = 200
         inv_resp.headers = {}
 
-        mock_request_manager.request.side_effect = [update_resp, locations_resp, inv_resp]
+        cost_resp = MagicMock()
+        cost_resp.status_code = 200
+        cost_resp.headers = {}
+
+        mock_request_manager.request.side_effect = [update_resp, locations_resp, inv_resp, cost_resp]
 
         api = self._make_api(sample_env, mock_request_manager)
         result = api.update_product(99999, sample_enriched_product,
