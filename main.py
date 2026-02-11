@@ -14,8 +14,6 @@ from utils import (
     load_env_variables,
 )
 
-FULL_SYNC_FLAG = "--full-sync" in sys.argv
-
 # --- Configuration & Setup ---
 
 try:
@@ -66,16 +64,13 @@ def preflight_checks(wimood_api, shopify_api, scraper=None):
 
 
 def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scrape_cache=None,
-                    product_mapping=None, scrape_mode="new_only"):
+                    product_mapping=None):
     """
     Main function to execute the product fetching and Shopify synchronization.
-
-    Args:
-        scrape_mode: "new_only" = only scrape new products, "full" = scrape all products
     """
     start_time = time.time()
     LOGGER.info("====================================================================")
-    LOGGER.info(f"STARTING SYNC: Wimood to Shopify (scrape_mode={scrape_mode})")
+    LOGGER.info("STARTING SYNC: Wimood to Shopify")
     LOGGER.info("--------------------------------------------------------------------")
 
     # Fetch Core Data (API - Fast and reliable for price/stock)
@@ -117,7 +112,6 @@ def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scra
             scraper=scraper,
             scrape_cache=scrape_cache,
             product_mapping=product_mapping,
-            scrape_mode=scrape_mode,
         )
     except Exception as e:
         LOGGER.error(f"FATAL: Failed to sync products to Shopify: {e}")
@@ -142,13 +136,9 @@ def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scra
 
 if __name__ == "__main__":
     sleep_display_time = format_seconds_to_human_readable(SYNC_INTERVAL)
-    FULL_SYNC_INTERVAL = ENV.get('FULL_SYNC_INTERVAL_HOURS', 24) * 3600
 
     if TEST_MODE:
         LOGGER.warning(f"TEST MODE ENABLED — product limit: {TEST_PRODUCT_LIMIT}")
-
-    if FULL_SYNC_FLAG:
-        LOGGER.info("Full sync requested via --full-sync flag.")
 
     # Initialize managers once at startup
     try:
@@ -175,34 +165,10 @@ if __name__ == "__main__":
     # Start monitor server if enabled
     monitor = None
     if ENV.get('ENABLE_MONITORING', False):
-        monitor = MonitorServer(
-            port=ENV.get('MONITOR_PORT', 8080),
-            scraping_enabled=True,
-        )
+        monitor = MonitorServer(port=ENV.get('MONITOR_PORT', 8080))
         monitor.start()
 
-    # Track when the last full sync was run
-    FULL_SYNC_ON_STARTUP = ENV.get('FULL_SYNC_ON_STARTUP', True)
-    if FULL_SYNC_ON_STARTUP:
-        last_full_sync = 0  # Force full sync on first run
-        LOGGER.info("Full sync on startup is ENABLED.")
-    else:
-        last_full_sync = time.time()  # Pretend a full sync just happened
-        LOGGER.info("Full sync on startup is DISABLED. First run will use 'new_only' mode.")
-
     while True:
-        # Determine scrape mode for this cycle
-        now = time.time()
-        time_since_full = now - last_full_sync
-
-        if FULL_SYNC_FLAG and last_full_sync == 0:
-            # First run with --full-sync flag
-            scrape_mode = "full"
-        elif time_since_full >= FULL_SYNC_INTERVAL:
-            scrape_mode = "full"
-        else:
-            scrape_mode = "new_only"
-
         if monitor:
             monitor.set_running()
 
@@ -214,35 +180,18 @@ if __name__ == "__main__":
                 scraper=scraper,
                 scrape_cache=scrape_cache,
                 product_mapping=product_mapping,
-                scrape_mode=scrape_mode,
             )
-
-            if scrape_mode == "full":
-                last_full_sync = time.time()
 
         except Exception as main_e:
             LOGGER.exception(f"Unhandled critical exception in sync loop: {main_e}")
             sync_results, duration = None, 0
 
-        # Exit after single run if --full-sync flag was used
-        if FULL_SYNC_FLAG:
-            LOGGER.info("Full sync complete. Exiting (--full-sync is a one-shot run).")
-            break
-
-        next_full_in = FULL_SYNC_INTERVAL - (time.time() - last_full_sync)
-
         if monitor and sync_results is not None:
             monitor.update_status(
                 sync_results=sync_results,
                 duration=duration,
-                scrape_mode=scrape_mode,
                 next_sync_in=SYNC_INTERVAL,
-                next_full_sync_in=max(0, next_full_in),
             )
 
-        LOGGER.info(
-            "Sync cycle complete. Next run in %s. Next full sync in %s.\n",
-            sleep_display_time,
-            format_seconds_to_human_readable(max(0, int(next_full_in))),
-        )
+        LOGGER.info("Sync cycle complete. Next run in %s.\n", sleep_display_time)
         time.sleep(SYNC_INTERVAL)

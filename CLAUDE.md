@@ -31,7 +31,7 @@ ruff check .
 - `wimood_api.py`: `WimoodAPI` class fetches XML product feed, parses it into dicts with keys: `product_id`, `sku`, `title`, `brand`, `ean`, `price`, `msrp`, `stock`.
 - `wimood_scraper.py`: `WimoodScraper` class scrapes wimoodshop.nl product pages. Extracts images (from gallery), description (from "Omschrijving" section), and specs (from "Specificaties" table). Rate-limited with configurable delay.
 - `shopify_api.py`: `ShopifyAPI` class handles CRUD operations. Creates/updates products with enriched data (body_html, images, metafields for brand/ean/msrp/specs). Caches location_id for inventory updates.
-- `shopify_sync.py`: `sync_products()` orchestrates the full sync — optional enrichment via scraper/cache, then create/update/deactivate products. Compares title, price, status, body_html, and image count to detect changes.
+- `shopify_sync.py`: `sync_products()` orchestrates the sync — scrapes new products for enrichment, then create/update/deactivate products. Compares title, price, cost, status, body_html, and image count to detect changes.
 
 **`utils/`** — Shared utilities, all re-exported from `utils/__init__.py`.
 - `env.py`: `load_env_variables()` validates and returns all config from `.env`. Supports type casting (str/int/bool). Required vars cause `SystemExit` if missing.
@@ -49,7 +49,7 @@ Configured via `.env` file (loaded by python-dotenv). See `.env.example` for ful
 
 **Required:** `WIMOOD_API_KEY`, `WIMOOD_API_URL`, `WIMOOD_BASE_URL`, `WIMOOD_CUSTOMER_ID`, `SHOPIFY_STORE_URL`, `SHOPIFY_ACCESS_TOKEN`
 
-**Optional (with defaults):** `LOG_DIR` (logs), `LOG_LEVEL` (INFO), `LOG_TO_STDOUT` (true), `SYNC_INTERVAL_SECONDS` (3600), `MAX_SCRAPE_RETRIES` (5), `SHOPIFY_VENDOR_TAG` (Wimood_Sync), `ENABLE_SCRAPING` (false), `SCRAPE_DELAY_SECONDS` (2), `FULL_SYNC_ON_STARTUP` (true), `FULL_SYNC_INTERVAL_HOURS` (24), `ENABLE_MONITORING` (false), `MONITOR_PORT` (8080), `TEST_MODE` (false), `TEST_PRODUCT_LIMIT` (5)
+**Optional (with defaults):** `LOG_DIR` (logs), `LOG_LEVEL` (INFO), `LOG_TO_STDOUT` (true), `SYNC_INTERVAL_SECONDS` (3600), `MAX_SCRAPE_RETRIES` (5), `SHOPIFY_VENDOR_TAG` (Wimood_Sync), `SCRAPE_DELAY_SECONDS` (2), `ENABLE_MONITORING` (false), `MONITOR_PORT` (8080), `TEST_MODE` (false), `TEST_PRODUCT_LIMIT` (5)
 
 ## Dependencies
 

@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 class MonitorServer:
     """Lightweight HTTP server that exposes sync status as JSON."""
 
-    def __init__(self, port=8080, scraping_enabled=False):
+    def __init__(self, port=8080):
         self._lock = threading.Lock()
         self._port = port
         self._start_time = time.time()
@@ -20,7 +20,6 @@ class MonitorServer:
             "status": "starting",
             "last_sync": "never",
             "last_sync_duration_seconds": 0,
-            "last_sync_mode": "none",
             "last_sync_results": {
                 "created": 0,
                 "updated": 0,
@@ -29,9 +28,7 @@ class MonitorServer:
                 "errors": 0,
             },
             "next_sync_in_seconds": 0,
-            "next_full_sync_in_seconds": 0,
             "uptime_seconds": 0,
-            "scraping_enabled": scraping_enabled,
         }
         self._server = None
 
@@ -74,14 +71,12 @@ class MonitorServer:
         with self._lock:
             self._state["status"] = "running"
 
-    def update_status(self, sync_results, duration, scrape_mode,
-                      next_sync_in=None, next_full_sync_in=None):
+    def update_status(self, sync_results, duration, next_sync_in=None):
         with self._lock:
             errors = sync_results.get("errors", 0)
             self._state["status"] = "error" if errors > 0 else "ok"
             self._state["last_sync"] = datetime.now(timezone.utc).isoformat()
             self._state["last_sync_duration_seconds"] = round(duration, 2)
-            self._state["last_sync_mode"] = scrape_mode
             self._state["last_sync_results"] = {
                 "created": sync_results.get("created", 0),
                 "updated": sync_results.get("updated", 0),
@@ -91,5 +86,3 @@ class MonitorServer:
             }
             if next_sync_in is not None:
                 self._state["next_sync_in_seconds"] = round(next_sync_in)
-            if next_full_sync_in is not None:
-                self._state["next_full_sync_in_seconds"] = round(next_full_sync_in)

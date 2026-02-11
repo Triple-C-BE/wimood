@@ -5,8 +5,7 @@ LOGGER = logging.getLogger('shopify_sync')
 
 
 def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = False,
-                   scraper=None, scrape_cache=None, product_mapping=None,
-                   scrape_mode: str = "new_only") -> Dict[str, int]:
+                   scraper=None, scrape_cache=None, product_mapping=None) -> Dict[str, int]:
     """
     Orchestrates the full product sync from Wimood to Shopify.
 
@@ -17,26 +16,24 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
         scraper: Optional WimoodScraper instance for enrichment
         scrape_cache: Optional ScrapeCache instance
         product_mapping: Optional ProductMapping instance
-        scrape_mode: "new_only" = only scrape products not in mapping (default),
-                     "full" = scrape all products (respects cache staleness)
 
     Returns:
         Dict with counts: created, updated, deactivated, skipped, errors
     """
     results = {'created': 0, 'updated': 0, 'deactivated': 0, 'skipped': 0, 'errors': 0}
 
-    # 0. Enrich products via scraping (if enabled)
+    # 0. Enrich new products via scraping (skip products that already exist in Shopify)
     if scraper:
         enrich_stats = {'scraped': 0, 'cached': 0, 'skipped': 0, 'failed': 0}
-        LOGGER.info(f"Enriching products via web scraping (mode={scrape_mode})...")
+        LOGGER.info("Enriching new products via web scraping...")
 
         for product in wimood_products:
             sku = product.get('sku', '')
             if not sku:
                 continue
 
-            # In "new_only" mode, skip products that already exist in the mapping
-            if scrape_mode == "new_only" and product_mapping:
+            # Skip products that already exist in the mapping (already on Shopify)
+            if product_mapping:
                 wimood_id = product.get('product_id', '')
                 if wimood_id and product_mapping.get_shopify_id(wimood_id):
                     enrich_stats['skipped'] += 1

@@ -64,8 +64,6 @@ def load_env_variables():
 
                 # --- Scraping ---
                 'SCRAPE_DELAY_SECONDS': get_env_var('SCRAPE_DELAY_SECONDS', default=2, var_type=int, required=False),
-                'FULL_SYNC_ON_STARTUP': get_env_var('FULL_SYNC_ON_STARTUP', default=True, var_type=bool, required=False),
-                'FULL_SYNC_INTERVAL_HOURS': get_env_var('FULL_SYNC_INTERVAL_HOURS', default=24, var_type=int, required=False),
 
                 # --- Monitoring ---
                 'ENABLE_MONITORING': get_env_var('ENABLE_MONITORING', default=False, var_type=bool, required=False),
