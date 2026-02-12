@@ -665,3 +665,32 @@ class ShopifyAPI:
 
         LOGGER.error(f"Unexpected fulfillment response for order {order_id}: {data}")
         return False
+
+    def cancel_order(self, order_id: int) -> bool:
+        """
+        Cancel an order in Shopify.
+
+        Args:
+            order_id: Shopify order ID.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        self._rate_limit()
+        url = f"{self.base_url}/orders/{order_id}/cancel.json"
+        LOGGER.info(f"Cancelling order {order_id} in Shopify")
+        response = self._request('POST', url)
+
+        if response is None:
+            LOGGER.error(f"Failed to cancel order {order_id}")
+            return False
+
+        self._log_rate_limit(response)
+        data = response.json()
+
+        if 'errors' in data or 'error' in data:
+            LOGGER.error(f"Shopify error cancelling order {order_id}: {data.get('errors') or data.get('error')}")
+            return False
+
+        LOGGER.info(f"Order {order_id} cancelled in Shopify")
+        return True

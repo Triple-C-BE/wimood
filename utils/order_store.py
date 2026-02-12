@@ -98,7 +98,7 @@ class OrderStore:
         with sqlite3.connect(self.db_file) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT * FROM orders WHERE fulfillment_status != 'fulfilled' ORDER BY created_at"
+                "SELECT * FROM orders WHERE fulfillment_status NOT IN ('fulfilled', 'cancelled') ORDER BY created_at"
             ).fetchall()
         return [dict(row) for row in rows]
 
@@ -108,7 +108,7 @@ class OrderStore:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 "SELECT * FROM orders WHERE dropship_submitted = 0 "
-                "AND fulfillment_status != 'fulfilled' ORDER BY created_at"
+                "AND fulfillment_status NOT IN ('fulfilled', 'cancelled') ORDER BY created_at"
             ).fetchall()
         return [dict(row) for row in rows]
 
@@ -118,7 +118,7 @@ class OrderStore:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 "SELECT * FROM orders WHERE dropship_submitted = 1 "
-                "AND fulfillment_status != 'fulfilled' ORDER BY created_at"
+                "AND fulfillment_status NOT IN ('fulfilled', 'cancelled') ORDER BY created_at"
             ).fetchall()
         return [dict(row) for row in rows]
 

@@ -60,6 +60,7 @@ def sync_orders(shopify_api, order_store, wimood_api=None, product_mapping=None)
         'new_orders': 0,
         'submitted': 0,
         'fulfilled': 0,
+        'cancelled': 0,
         'poll_checked': 0,
         'errors': 0,
     }
@@ -103,8 +104,8 @@ def sync_orders(shopify_api, order_store, wimood_api=None, product_mapping=None)
 
     LOGGER.info(
         f"Order sync complete — New: {results['new_orders']}, Submitted: {results['submitted']}, "
-        f"Fulfilled: {results['fulfilled']}, Polled: {results['poll_checked']}, "
-        f"Errors: {results['errors']}"
+        f"Fulfilled: {results['fulfilled']}, Cancelled: {results['cancelled']}, "
+        f"Polled: {results['poll_checked']}, Errors: {results['errors']}"
     )
 
     return results
@@ -223,6 +224,20 @@ def _poll_wimood_orders(shopify_api, order_store, wimood_api, results):
                 LOGGER.info(f"Order #{order_number} Wimood status: {old_status or '(none)'} -> {wimood_status}")
 
             order_store.update_wimood_status(order_id, wimood_status, tracking_code, tracking_url)
+
+            # If Wimood cancelled the order -> cancel in Shopify too
+            if wimood_status == 'cancelled':
+                LOGGER.info(f"Order #{order_number} cancelled by Wimood — cancelling in Shopify")
+
+                success = shopify_api.cancel_order(order_id)
+                if success:
+                    order_store.update_fulfillment(order_id, 'cancelled')
+                    results['cancelled'] += 1
+                    LOGGER.info(f"Order #{order_number} cancelled in Shopify")
+                else:
+                    LOGGER.error(f"Failed to cancel order #{order_number} in Shopify")
+                    results['errors'] += 1
+                continue
 
             # If we have tracking info, the order is shipped -> create Shopify fulfillment
             if tracking_code:

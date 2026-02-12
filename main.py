@@ -149,7 +149,8 @@ def run_order_sync(shopify_api, order_store, wimood_api=None, product_mapping=No
     LOGGER.info(
         f"Order sync done in {duration:.1f}s — "
         f"new: {order_results['new_orders']}, submitted: {order_results['submitted']}, "
-        f"fulfilled: {order_results['fulfilled']}, polled: {order_results['poll_checked']}, "
+        f"fulfilled: {order_results['fulfilled']}, cancelled: {order_results['cancelled']}, "
+        f"polled: {order_results['poll_checked']}, "
         f"errors: {order_results['errors']}"
     )
 
