@@ -77,6 +77,9 @@ def load_env_variables():
                 'ENABLE_ORDER_SYNC': get_env_var('ENABLE_ORDER_SYNC', default=False, var_type=bool, required=False),
                 'ORDER_SYNC_INTERVAL_SECONDS': get_env_var('ORDER_SYNC_INTERVAL_SECONDS', default=300, var_type=int, required=False),
                 'WIMOOD_ORDER_API_URL': get_env_var('WIMOOD_ORDER_API_URL', default='https://api.wimood.nl/v1', required=False),
+                'WIMOOD_ORDER_SHIPMENT': get_env_var('WIMOOD_ORDER_SHIPMENT', default='postnl', required=False),
+                'WIMOOD_ORDER_PAYMENT': get_env_var('WIMOOD_ORDER_PAYMENT', default='invoice', required=False),
+                'WIMOOD_ORDER_REMARK': get_env_var('WIMOOD_ORDER_REMARK', default='test', required=False),
 
             }
             return env

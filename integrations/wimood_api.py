@@ -28,6 +28,9 @@ class WimoodAPI:
 
         # REST API base URL for order operations
         self.order_api_base = env.get('WIMOOD_ORDER_API_URL', 'https://api.wimood.nl/v1')
+        self.order_shipment = env.get('WIMOOD_ORDER_SHIPMENT', 'postnl')
+        self.order_payment = env.get('WIMOOD_ORDER_PAYMENT', 'invoice')
+        self.order_remark = env.get('WIMOOD_ORDER_REMARK', 'test')
 
         API_LOGGER.info(f"WimoodAPIFetcher initialized for URL: {self.api_url}")
         API_LOGGER.info(f"Order API base: {self.order_api_base}")
@@ -181,12 +184,12 @@ class WimoodAPI:
         url = f"{self.order_api_base}/orders"
 
         payload = {
-            "shipment": "postnl",
-            "payment": "invoice",
+            "shipment": self.order_shipment,
+            "payment": self.order_payment,
             "dropshipment": True,
             "split": True,
             "reference": str(order_data['reference']),
-            "remark": "test",
+            "remark": self.order_remark,
             "customer_address": order_data['customer_address'],
             "order": [
                 {"product_id": int(item['product_id']), "quantity": int(item['quantity'])}
