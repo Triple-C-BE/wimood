@@ -189,7 +189,7 @@ class WimoodAPI:
             "remark": "test",
             "customer_address": order_data['customer_address'],
             "order": [
-                {"product_id": item['product_id'], "quantity": item['quantity']}
+                {"product_id": int(item['product_id']), "quantity": int(item['quantity'])}
                 for item in order_data['items']
             ],
         }
