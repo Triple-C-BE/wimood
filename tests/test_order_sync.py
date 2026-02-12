@@ -16,7 +16,7 @@ class TestAddressMapping:
             'country_code': 'NL',
         }
         result = map_shopify_address_to_wimood(address)
-        assert result['name'] == 'Jan de Vries'
+        assert result['contact_person'] == 'Jan de Vries'
         assert result['company'] == 'Acme BV'
         assert result['street'] == 'Keizersgracht'
         assert result['housenumber'] == '123'

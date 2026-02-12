@@ -29,7 +29,7 @@ def map_shopify_address_to_wimood(shipping_address: Dict) -> Dict:
 
     return {
         "company": shipping_address.get('company', '') or '',
-        "name": f"{shipping_address.get('first_name', '')} {shipping_address.get('last_name', '')}".strip(),
+        "contact_person": f"{shipping_address.get('first_name', '')} {shipping_address.get('last_name', '')}".strip(),
         "street": street,
         "housenumber": housenumber,
         "postcode": shipping_address.get('zip', '') or '',

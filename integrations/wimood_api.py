@@ -181,8 +181,8 @@ class WimoodAPI:
         url = f"{self.order_api_base}/orders"
 
         payload = {
-            "shipment": True,
-            "payment": True,
+            "shipment": "pick_up",
+            "payment": "cash",
             "dropshipment": True,
             "split": True,
             "reference": str(order_data['reference']),
