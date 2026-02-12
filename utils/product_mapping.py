@@ -5,8 +5,8 @@ from typing import Dict, List, Optional
 
 LOGGER = logging.getLogger('product_mapping')
 
-MAPPING_DIR = 'data'
-MAPPING_FILE = os.path.join(MAPPING_DIR, 'product_mapping.db')
+DATA_DIR = 'data'
+DB_FILE = os.path.join(DATA_DIR, 'wimood_sync.db')
 
 
 class ProductMapping:
@@ -15,7 +15,7 @@ class ProductMapping:
     Provides persistent storage for product synchronization.
     """
 
-    def __init__(self, db_file=MAPPING_FILE):
+    def __init__(self, db_file=DB_FILE):
         self.db_file = db_file
         self._ensure_database()
 
@@ -33,7 +33,7 @@ class ProductMapping:
             ''')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_sku ON product_mapping(sku)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_shopify_id ON product_mapping(shopify_product_id)')
-        LOGGER.info(f"Product mapping database initialized at {self.db_file}")
+        LOGGER.debug(f"Product mapping table ready in {self.db_file}")
 
     def get_shopify_id(self, wimood_product_id: str) -> Optional[int]:
         """Get Shopify product ID for a given Wimood product_id."""

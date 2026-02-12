@@ -10,7 +10,8 @@ API_LOGGER = logging.getLogger('wimood_api')
 
 class WimoodAPI:
     """
-    Manages communication with the Wimood XML API to fetch core product data.
+    Manages communication with the Wimood XML API to fetch core product data,
+    and with the Wimood REST API to create and track dropship orders.
     """
 
     def __init__(self, env: Dict[str, str], request_manager):
@@ -23,10 +24,13 @@ class WimoodAPI:
         self.request_manager = request_manager
 
         # Construct the full URL for the product feed
-        # Assuming the API requires the key as a query parameter
         self.full_url = f"{self.api_url}/index.php?api_key={self.api_key}&klantnummer={self.customer_id}"
 
+        # REST API base URL for order operations
+        self.order_api_base = env.get('WIMOOD_ORDER_API_URL', 'https://api.wimood.nl/v1')
+
         API_LOGGER.info(f"WimoodAPIFetcher initialized for URL: {self.api_url}")
+        API_LOGGER.info(f"Order API base: {self.order_api_base}")
 
     def check_connection(self) -> bool:
         """
@@ -128,3 +132,124 @@ class WimoodAPI:
                     f"Skipping product due to parsing error: {e}. Element XML: {ET.tostring(element)[:100]}")
 
         return products_data
+
+    # --- Order API methods ---
+
+    def _order_headers(self) -> Dict[str, str]:
+        """Build authorization headers for the REST order API."""
+        return {
+            'X-AUTH-TOKEN': self.api_key,
+            'Content-Type': 'application/json',
+        }
+
+    def check_order_api_connection(self) -> bool:
+        """
+        Pre-flight check: verify we can reach the Wimood order API.
+
+        Returns:
+            True if connection is healthy, False otherwise.
+        """
+        API_LOGGER.info("Running Wimood Order API pre-flight check...")
+        url = f"{self.order_api_base}/orders"
+        response = self.request_manager.request('GET', url, headers=self._order_headers())
+
+        if response is None:
+            API_LOGGER.error("Pre-flight FAILED: Could not reach Wimood Order API.")
+            return False
+
+        if response.status_code in (401, 403):
+            API_LOGGER.error(f"Pre-flight FAILED: Wimood Order API returned {response.status_code} (auth error).")
+            return False
+
+        API_LOGGER.info(f"Pre-flight OK: Wimood Order API reachable (status {response.status_code}).")
+        return True
+
+    def create_order(self, order_data: Dict) -> Optional[int]:
+        """
+        Create a dropship order at Wimood.
+
+        Args:
+            order_data: Dict with keys:
+                - reference: Shopify order number (str)
+                - customer_address: Dict with company, contact, street, housenumber,
+                                    postcode, city, country
+                - items: List of dicts with product_id and quantity
+
+        Returns:
+            Wimood order number (int) on success, None on failure.
+        """
+        url = f"{self.order_api_base}/orders"
+
+        payload = {
+            "shipment": True,
+            "payment": True,
+            "dropshipment": True,
+            "split": True,
+            "reference": str(order_data['reference']),
+            "remark": "test",
+            "customer_address": order_data['customer_address'],
+            "order": [
+                {"product_id": item['product_id'], "quantity": item['quantity']}
+                for item in order_data['items']
+            ],
+        }
+
+        API_LOGGER.info(f"Creating Wimood order for reference {order_data['reference']} "
+                        f"with {len(order_data['items'])} item(s)...")
+
+        response = self.request_manager.request(
+            'POST', url, headers=self._order_headers(), json=payload
+        )
+
+        if response is None:
+            API_LOGGER.error(f"Failed to create Wimood order for reference {order_data['reference']}")
+            return None
+
+        if response.status_code not in (200, 201):
+            API_LOGGER.error(
+                f"Wimood order creation failed: status {response.status_code}, "
+                f"body: {response.text[:500]}"
+            )
+            return None
+
+        try:
+            data = response.json()
+        except Exception:
+            API_LOGGER.error(f"Failed to parse Wimood order response: {response.text[:500]}")
+            return None
+
+        wimood_order_id = data.get('order_number') or data.get('order_id') or data.get('id')
+        if wimood_order_id:
+            API_LOGGER.info(f"Wimood order created: {wimood_order_id} (ref: {order_data['reference']})")
+            return int(wimood_order_id)
+
+        API_LOGGER.error(f"Wimood order response missing order ID: {data}")
+        return None
+
+    def get_order_status(self, order_id: int) -> Optional[Dict]:
+        """
+        Get the status of a Wimood order.
+
+        Args:
+            order_id: Wimood order number.
+
+        Returns:
+            Dict with 'status' and 'track_and_trace' fields, or None on failure.
+        """
+        url = f"{self.order_api_base}/orders/{order_id}"
+
+        response = self.request_manager.request('GET', url, headers=self._order_headers())
+
+        if response is None:
+            API_LOGGER.error(f"Failed to fetch Wimood order status for {order_id}")
+            return None
+
+        if response.status_code != 200:
+            API_LOGGER.error(f"Wimood order status failed: {response.status_code} for order {order_id}")
+            return None
+
+        try:
+            return response.json()
+        except Exception:
+            API_LOGGER.error(f"Failed to parse Wimood order status response for {order_id}")
+            return None

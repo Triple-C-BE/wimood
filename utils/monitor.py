@@ -86,3 +86,20 @@ class MonitorServer:
             }
             if next_sync_in is not None:
                 self._state["next_sync_in_seconds"] = round(next_sync_in)
+
+    def update_order_status(self, order_results, duration, next_sync_in=None):
+        with self._lock:
+            errors = order_results.get("errors", 0)
+            self._state["order_sync"] = {
+                "status": "error" if errors > 0 else "ok",
+                "last_sync": datetime.now(timezone.utc).isoformat(),
+                "last_sync_duration_seconds": round(duration, 2),
+                "last_sync_results": {
+                    "new_orders": order_results.get("new_orders", 0),
+                    "submitted": order_results.get("submitted", 0),
+                    "fulfilled": order_results.get("fulfilled", 0),
+                    "poll_checked": order_results.get("poll_checked", 0),
+                    "errors": errors,
+                },
+                "next_sync_in_seconds": round(next_sync_in) if next_sync_in else 0,
+            }

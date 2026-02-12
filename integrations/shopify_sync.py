@@ -5,7 +5,7 @@ LOGGER = logging.getLogger('shopify_sync')
 
 
 def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = False,
-                   scraper=None, scrape_cache=None, product_mapping=None) -> Dict[str, int]:
+                  scraper=None, scrape_cache=None, product_mapping=None) -> Dict[str, int]:
     """
     Orchestrates the full product sync from Wimood to Shopify.
 
@@ -22,7 +22,42 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
     """
     results = {'created': 0, 'updated': 0, 'deactivated': 0, 'skipped': 0, 'errors': 0}
 
-    # 0. Enrich new products via scraping (skip products that already exist in Shopify)
+    # 1. Fetch all existing Shopify products managed by this sync
+    LOGGER.info("Fetching existing Shopify products...")
+    shopify_products = shopify_api.get_all_products()
+
+    # 1b. Fetch inventory item costs and attach to products
+    cost_map = shopify_api.fetch_inventory_item_costs(shopify_products)
+    for product in shopify_products:
+        for variant in product.get('variants', []):
+            iid = variant.get('inventory_item_id')
+            if iid and iid in cost_map:
+                variant['cost'] = cost_map[iid]
+
+    # 2. Build SKU -> Shopify product lookup and ID -> product lookup
+    shopify_sku_map = {}
+    shopify_id_map = {}
+    for product in shopify_products:
+        shopify_id_map[product['id']] = product
+        for variant in product.get('variants', []):
+            sku = variant.get('sku', '')
+            if sku:
+                shopify_sku_map[sku] = product
+                break  # Use first variant's SKU
+
+    LOGGER.info(f"Found {len(shopify_sku_map)} existing products in Shopify by SKU.")
+
+    # 3. Clean stale mappings — remove any whose shopify_product_id no longer exists in Shopify
+    if product_mapping:
+        stale_count = 0
+        for mapping in product_mapping.get_all_mappings():
+            if mapping['shopify_product_id'] not in shopify_id_map:
+                product_mapping.remove(mapping['wimood_product_id'])
+                stale_count += 1
+        if stale_count:
+            LOGGER.info(f"Removed {stale_count} stale product mapping(s) (Shopify product deleted).")
+
+    # 4. Enrich new products via scraping (skip products that already exist in Shopify)
     if scraper:
         enrich_stats = {'scraped': 0, 'cached': 0, 'skipped': 0, 'failed': 0}
         LOGGER.info("Enriching new products via web scraping...")
@@ -76,36 +111,10 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
             f"Failed: {enrich_stats['failed']}"
         )
 
-    # 1. Fetch all existing Shopify products managed by this sync
-    LOGGER.info("Fetching existing Shopify products...")
-    shopify_products = shopify_api.get_all_products()
-
-    # 1b. Fetch inventory item costs and attach to products
-    cost_map = shopify_api.fetch_inventory_item_costs(shopify_products)
-    for product in shopify_products:
-        for variant in product.get('variants', []):
-            iid = variant.get('inventory_item_id')
-            if iid and iid in cost_map:
-                variant['cost'] = cost_map[iid]
-
-    # 2. Build SKU -> Shopify product lookup and ID -> product lookup
-    shopify_sku_map = {}
-    shopify_id_map = {}
-    for product in shopify_products:
-        shopify_id_map[product['id']] = product
-        for variant in product.get('variants', []):
-            sku = variant.get('sku', '')
-            if sku:
-                shopify_sku_map[sku] = product
-                break  # Use first variant's SKU
-
-    LOGGER.info(f"Found {len(shopify_sku_map)} existing products in Shopify by SKU.")
-
-    # 3. Build set of Wimood SKUs for deactivation check
+    # 5. Build set of Wimood SKUs for deactivation check
     wimood_skus = set()
 
-    # 4. Process each Wimood product
-    LOGGER.info("--------------------------------------------------------------------")
+    # 6. Process each Wimood product
     LOGGER.info("Processing products...")
     total = len(wimood_products)
     for idx, product_data in enumerate(wimood_products, 1):
@@ -170,7 +179,7 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
             else:
                 results['errors'] += 1
 
-    # 5. Deactivate products no longer in Wimood feed
+    # 7. Deactivate products no longer in Wimood feed
     for sku, shopify_product in shopify_sku_map.items():
         if sku not in wimood_skus:
             # Only deactivate active products

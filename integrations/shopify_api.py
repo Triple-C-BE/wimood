@@ -537,3 +537,131 @@ class ShopifyAPI:
 
         LOGGER.debug(f"Cost set OK (status {response.status_code})")
         return True
+
+    def get_unfulfilled_orders(self) -> List[Dict]:
+        """
+        Fetch all unfulfilled orders from Shopify (paginated).
+
+        Returns:
+            List of Shopify order dicts.
+        """
+        orders = []
+        url = f"{self.base_url}/orders.json?fulfillment_status=unfulfilled&status=any&limit=250"
+
+        while url:
+            self._rate_limit()
+            response = self._request('GET', url)
+
+            if response is None:
+                LOGGER.error("Failed to fetch orders from Shopify.")
+                return orders
+
+            self._log_rate_limit(response)
+            data = response.json()
+            orders.extend(data.get('orders', []))
+            url = self._get_next_page_url(response)
+
+        LOGGER.info(f"Fetched {len(orders)} unfulfilled orders from Shopify.")
+        return orders
+
+    def get_order(self, order_id: int) -> Optional[Dict]:
+        """
+        Fetch a single order by ID.
+
+        Returns:
+            Shopify order dict, or None on failure.
+        """
+        self._rate_limit()
+        url = f"{self.base_url}/orders/{order_id}.json"
+        response = self._request('GET', url)
+
+        if response is None:
+            LOGGER.error(f"Failed to fetch order {order_id}")
+            return None
+
+        self._log_rate_limit(response)
+        data = response.json()
+        return data.get('order')
+
+    def create_fulfillment(self, order_id: int, tracking_number: str = '',
+                           tracking_url: str = '') -> bool:
+        """
+        Create a fulfillment for an order, marking it as fulfilled with optional tracking info.
+
+        Args:
+            order_id: Shopify order ID.
+            tracking_number: Tracking number from carrier.
+            tracking_url: Tracking URL from carrier.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        # First, get the fulfillment order IDs for this order
+        self._rate_limit()
+        fo_url = f"{self.base_url}/orders/{order_id}/fulfillment_orders.json"
+        fo_response = self._request('GET', fo_url)
+
+        if fo_response is None:
+            LOGGER.error(f"Failed to fetch fulfillment orders for order {order_id}")
+            return False
+
+        self._log_rate_limit(fo_response)
+        fo_data = fo_response.json()
+        fulfillment_orders = fo_data.get('fulfillment_orders', [])
+
+        if not fulfillment_orders:
+            LOGGER.warning(f"No fulfillment orders found for order {order_id}")
+            return False
+
+        # Build line_items_by_fulfillment_order from all open fulfillment orders
+        line_items_by_fo = []
+        for fo in fulfillment_orders:
+            if fo.get('status') in ('open', 'in_progress'):
+                line_items_by_fo.append({
+                    "fulfillment_order_id": fo['id'],
+                })
+
+        if not line_items_by_fo:
+            LOGGER.warning(f"No open fulfillment orders for order {order_id} (may already be fulfilled)")
+            return False
+
+        tracking_info = {}
+        if tracking_number:
+            tracking_info["number"] = tracking_number
+        if tracking_url:
+            tracking_info["url"] = tracking_url
+
+        payload = {
+            "fulfillment": {
+                "line_items_by_fulfillment_order": line_items_by_fo,
+                "notify_customer": True,
+            }
+        }
+
+        if tracking_info:
+            payload["fulfillment"]["tracking_info"] = tracking_info
+
+        self._rate_limit()
+        url = f"{self.base_url}/fulfillments.json"
+        LOGGER.info(f"Creating fulfillment for order {order_id} (tracking: {tracking_number or 'none'})")
+        response = self._request('POST', url, json=payload)
+
+        if response is None:
+            LOGGER.error(f"Failed to create fulfillment for order {order_id}")
+            return False
+
+        self._log_rate_limit(response)
+        data = response.json()
+
+        if 'errors' in data:
+            LOGGER.error(f"Shopify error creating fulfillment for order {order_id}: {data['errors']}")
+            return False
+
+        fulfillment = data.get('fulfillment')
+        if fulfillment:
+            LOGGER.info(f"Fulfillment created for order {order_id}: ID={fulfillment['id']}, "
+                        f"status={fulfillment.get('status')}")
+            return True
+
+        LOGGER.error(f"Unexpected fulfillment response for order {order_id}: {data}")
+        return False
