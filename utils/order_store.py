@@ -113,12 +113,12 @@ class OrderStore:
         return [dict(row) for row in rows]
 
     def get_submitted_unfulfilled(self) -> List[Dict]:
-        """Get orders submitted to Wimood but not yet fulfilled in Shopify."""
+        """Get orders submitted to Wimood that still need polling (not yet delivered or cancelled)."""
         with sqlite3.connect(self.db_file) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 "SELECT * FROM orders WHERE dropship_submitted = 1 "
-                "AND fulfillment_status NOT IN ('fulfilled', 'cancelled') ORDER BY created_at"
+                "AND fulfillment_status NOT IN ('delivered', 'cancelled') ORDER BY created_at"
             ).fetchall()
         return [dict(row) for row in rows]
 
@@ -161,6 +161,16 @@ class OrderStore:
                 WHERE shopify_order_id = ?
             ''', (fulfillment_status, tracking_number, tracking_url, shopify_order_id))
         LOGGER.debug(f"Updated order {shopify_order_id} fulfillment: {fulfillment_status}")
+
+    def get_active_orders(self) -> List[Dict]:
+        """Get all orders that still need processing (not delivered or cancelled)."""
+        with sqlite3.connect(self.db_file) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM orders WHERE fulfillment_status NOT IN ('delivered', 'cancelled') "
+                "ORDER BY created_at"
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def get_all_orders(self) -> List[Dict]:
         """Get all orders."""

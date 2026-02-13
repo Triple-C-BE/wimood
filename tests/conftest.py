@@ -55,6 +55,7 @@ def sample_shopify_product():
                 'price': '199.99',
                 'cost': '149.99',
                 'inventory_item_id': 77777,
+                'inventory_quantity': 10,
             }
         ],
     }

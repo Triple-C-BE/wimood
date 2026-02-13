@@ -113,8 +113,7 @@ class TestSyncOrdersFetchStore:
 
         mock_store = mocker.MagicMock()
         mock_store.get_all_orders.return_value = []
-        mock_store.get_unsubmitted_orders.return_value = []
-        mock_store.get_submitted_unfulfilled.return_value = []
+        mock_store.get_active_orders.return_value = []
 
         results = sync_orders(mock_shopify, mock_store)
 
@@ -137,8 +136,7 @@ class TestSyncOrdersFetchStore:
 
         mock_store = mocker.MagicMock()
         mock_store.get_all_orders.return_value = [{'shopify_order_id': 1001}]
-        mock_store.get_unsubmitted_orders.return_value = []
-        mock_store.get_submitted_unfulfilled.return_value = []
+        mock_store.get_active_orders.return_value = []
 
         results = sync_orders(mock_shopify, mock_store)
 
@@ -154,14 +152,16 @@ class TestSyncOrdersDropship:
 
         mock_store = mocker.MagicMock()
         mock_store.get_all_orders.return_value = []
-        mock_store.get_unsubmitted_orders.return_value = [
+        mock_store.get_active_orders.return_value = [
             {
                 'shopify_order_id': 2001,
                 'order_number': '2001',
                 'fulfillment_status': 'unfulfilled',
+                'dropship_submitted': 0,
+                'wimood_order_id': None,
+                'wimood_status': '',
             },
         ]
-        mock_store.get_submitted_unfulfilled.return_value = []
 
         mock_shopify.get_order.return_value = {
             'id': 2001,
@@ -207,14 +207,16 @@ class TestSyncOrdersDropship:
 
         mock_store = mocker.MagicMock()
         mock_store.get_all_orders.return_value = []
-        mock_store.get_unsubmitted_orders.return_value = [
+        mock_store.get_active_orders.return_value = [
             {
                 'shopify_order_id': 2002,
                 'order_number': '2002',
                 'fulfillment_status': 'unfulfilled',
+                'dropship_submitted': 0,
+                'wimood_order_id': None,
+                'wimood_status': '',
             },
         ]
-        mock_store.get_submitted_unfulfilled.return_value = []
 
         mock_shopify.get_order.return_value = {
             'id': 2002,
@@ -250,14 +252,16 @@ class TestSyncOrdersDropship:
 
         mock_store = mocker.MagicMock()
         mock_store.get_all_orders.return_value = []
-        mock_store.get_unsubmitted_orders.return_value = [
+        mock_store.get_active_orders.return_value = [
             {
                 'shopify_order_id': 2003,
                 'order_number': '2003',
                 'fulfillment_status': 'unfulfilled',
+                'dropship_submitted': 0,
+                'wimood_order_id': None,
+                'wimood_status': '',
             },
         ]
-        mock_store.get_submitted_unfulfilled.return_value = []
 
         mock_shopify.get_order.return_value = {
             'id': 2003,
@@ -279,21 +283,84 @@ class TestSyncOrdersDropship:
 class TestSyncOrdersPolling:
     """Tests for the Wimood order status polling step."""
 
-    def test_fulfill_when_tracking_available(self, mocker):
+    def test_pending_marks_in_progress(self, mocker):
+        """When Wimood status is 'pending', mark fulfillment as in_progress in Shopify."""
+        mock_shopify = mocker.MagicMock()
+        mock_shopify.get_unfulfilled_orders.return_value = []
+        mock_shopify.mark_fulfillment_in_progress.return_value = True
+
+        mock_store = mocker.MagicMock()
+        mock_store.get_all_orders.return_value = []
+        mock_store.get_active_orders.return_value = [
+            {
+                'shopify_order_id': 3001,
+                'order_number': '3001',
+                'wimood_order_id': 88001,
+                'wimood_status': '',
+                'fulfillment_status': 'unfulfilled',
+                'dropship_submitted': 1,
+            },
+        ]
+
+        mock_wimood = mocker.MagicMock()
+        mock_wimood.get_order_status.return_value = {
+            'status': 'pending',
+            'track_and_trace': {},
+        }
+
+        results = sync_orders(mock_shopify, mock_store, wimood_api=mock_wimood)
+
+        assert results['in_progress'] == 1
+        assert results['poll_checked'] == 1
+        mock_shopify.mark_fulfillment_in_progress.assert_called_once_with(3001)
+        mock_store.update_fulfillment.assert_called_once_with(3001, 'in_progress')
+
+    def test_pending_no_duplicate_in_progress(self, mocker):
+        """When Wimood status is 'pending' but local status is already 'in_progress', no Shopify call."""
+        mock_shopify = mocker.MagicMock()
+        mock_shopify.get_unfulfilled_orders.return_value = []
+
+        mock_store = mocker.MagicMock()
+        mock_store.get_all_orders.return_value = []
+        mock_store.get_active_orders.return_value = [
+            {
+                'shopify_order_id': 3001,
+                'order_number': '3001',
+                'wimood_order_id': 88001,
+                'wimood_status': 'pending',
+                'fulfillment_status': 'in_progress',
+                'dropship_submitted': 1,
+            },
+        ]
+
+        mock_wimood = mocker.MagicMock()
+        mock_wimood.get_order_status.return_value = {
+            'status': 'pending',
+            'track_and_trace': {},
+        }
+
+        results = sync_orders(mock_shopify, mock_store, wimood_api=mock_wimood)
+
+        assert results['in_progress'] == 0
+        assert results['poll_checked'] == 1
+        mock_shopify.mark_fulfillment_in_progress.assert_not_called()
+
+    def test_shipped_creates_fulfillment(self, mocker):
+        """When Wimood status is 'shipped', create Shopify fulfillment with tracking."""
         mock_shopify = mocker.MagicMock()
         mock_shopify.get_unfulfilled_orders.return_value = []
         mock_shopify.create_fulfillment.return_value = True
 
         mock_store = mocker.MagicMock()
         mock_store.get_all_orders.return_value = []
-        mock_store.get_unsubmitted_orders.return_value = []
-        mock_store.get_submitted_unfulfilled.return_value = [
+        mock_store.get_active_orders.return_value = [
             {
                 'shopify_order_id': 3001,
                 'order_number': '3001',
                 'wimood_order_id': 88001,
-                'wimood_status': 'received',
-                'fulfillment_status': 'unfulfilled',
+                'wimood_status': 'pending',
+                'fulfillment_status': 'in_progress',
+                'dropship_submitted': 1,
             },
         ]
 
@@ -317,27 +384,31 @@ class TestSyncOrdersPolling:
             3001, 'fulfilled', '3STEST12345', 'https://tracking.example.com/3STEST12345'
         )
 
-    def test_no_fulfill_without_tracking(self, mocker):
+    def test_shipped_no_duplicate_fulfillment(self, mocker):
+        """When Wimood status is 'shipped' but local status is already 'fulfilled', no Shopify call."""
         mock_shopify = mocker.MagicMock()
         mock_shopify.get_unfulfilled_orders.return_value = []
 
         mock_store = mocker.MagicMock()
         mock_store.get_all_orders.return_value = []
-        mock_store.get_unsubmitted_orders.return_value = []
-        mock_store.get_submitted_unfulfilled.return_value = [
+        mock_store.get_active_orders.return_value = [
             {
-                'shopify_order_id': 3002,
-                'order_number': '3002',
-                'wimood_order_id': 88002,
-                'wimood_status': 'received',
-                'fulfillment_status': 'unfulfilled',
+                'shopify_order_id': 3001,
+                'order_number': '3001',
+                'wimood_order_id': 88001,
+                'wimood_status': 'shipped',
+                'fulfillment_status': 'fulfilled',
+                'dropship_submitted': 1,
             },
         ]
 
         mock_wimood = mocker.MagicMock()
         mock_wimood.get_order_status.return_value = {
-            'status': 'processing',
-            'track_and_trace': {},
+            'status': 'shipped',
+            'track_and_trace': {
+                'code': '3STEST12345',
+                'url': 'https://tracking.example.com/3STEST12345',
+            },
         }
 
         results = sync_orders(mock_shopify, mock_store, wimood_api=mock_wimood)
@@ -346,6 +417,73 @@ class TestSyncOrdersPolling:
         assert results['poll_checked'] == 1
         mock_shopify.create_fulfillment.assert_not_called()
 
+    def test_delivered_stops_polling(self, mocker):
+        """When Wimood status is 'delivered', mark locally as delivered to stop polling."""
+        mock_shopify = mocker.MagicMock()
+        mock_shopify.get_unfulfilled_orders.return_value = []
+
+        mock_store = mocker.MagicMock()
+        mock_store.get_all_orders.return_value = []
+        mock_store.get_active_orders.return_value = [
+            {
+                'shopify_order_id': 3001,
+                'order_number': '3001',
+                'wimood_order_id': 88001,
+                'wimood_status': 'shipped',
+                'fulfillment_status': 'fulfilled',
+                'dropship_submitted': 1,
+            },
+        ]
+
+        mock_wimood = mocker.MagicMock()
+        mock_wimood.get_order_status.return_value = {
+            'status': 'delivered',
+            'track_and_trace': {
+                'code': '3STEST12345',
+                'url': 'https://tracking.example.com/3STEST12345',
+            },
+        }
+
+        results = sync_orders(mock_shopify, mock_store, wimood_api=mock_wimood)
+
+        assert results['delivered'] == 1
+        assert results['poll_checked'] == 1
+        mock_shopify.create_fulfillment.assert_not_called()
+        mock_store.update_fulfillment.assert_called_once_with(3001, 'delivered')
+
+    def test_no_action_for_intermediate_statuses(self, mocker):
+        """Statuses like received/paid/picked/ready_for_pickup trigger no Shopify action."""
+        mock_shopify = mocker.MagicMock()
+        mock_shopify.get_unfulfilled_orders.return_value = []
+
+        mock_store = mocker.MagicMock()
+        mock_store.get_all_orders.return_value = []
+        mock_store.get_active_orders.return_value = [
+            {
+                'shopify_order_id': 3002,
+                'order_number': '3002',
+                'wimood_order_id': 88002,
+                'wimood_status': 'pending',
+                'fulfillment_status': 'in_progress',
+                'dropship_submitted': 1,
+            },
+        ]
+
+        mock_wimood = mocker.MagicMock()
+        mock_wimood.get_order_status.return_value = {
+            'status': 'received',
+            'track_and_trace': {},
+        }
+
+        results = sync_orders(mock_shopify, mock_store, wimood_api=mock_wimood)
+
+        assert results['fulfilled'] == 0
+        assert results['in_progress'] == 0
+        assert results['poll_checked'] == 1
+        mock_shopify.create_fulfillment.assert_not_called()
+        mock_shopify.cancel_order.assert_not_called()
+        mock_shopify.mark_fulfillment_in_progress.assert_not_called()
+
     def test_skip_orders_with_zero_wimood_id(self, mocker):
         """Orders marked submitted with wimood_order_id=0 (no Wimood products) should not be polled."""
         mock_shopify = mocker.MagicMock()
@@ -353,14 +491,14 @@ class TestSyncOrdersPolling:
 
         mock_store = mocker.MagicMock()
         mock_store.get_all_orders.return_value = []
-        mock_store.get_unsubmitted_orders.return_value = []
-        mock_store.get_submitted_unfulfilled.return_value = [
+        mock_store.get_active_orders.return_value = [
             {
                 'shopify_order_id': 3003,
                 'order_number': '3003',
                 'wimood_order_id': 0,
                 'wimood_status': '',
                 'fulfillment_status': 'unfulfilled',
+                'dropship_submitted': 1,
             },
         ]
 

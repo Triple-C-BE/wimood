@@ -230,7 +230,7 @@ class ShopifyAPI:
                 self.product_mapping.set_mapping(
                     product_data['product_id'], created['id'], product_data['sku']
                 )
-            self._set_inventory_level(created, int(product_data.get('stock', 0)),
+            self.set_inventory_level(created, int(product_data.get('stock', 0)),
                                      cost=product_data.get('wholesale_price'))
         return created
 
@@ -311,7 +311,7 @@ class ShopifyAPI:
                 f"images={len(updated_images)}, "
                 f"status={updated.get('status')}"
             )
-            self._set_inventory_level(updated, int(product_data.get('stock', 0)),
+            self.set_inventory_level(updated, int(product_data.get('stock', 0)),
                                      cost=product_data.get('wholesale_price'))
         return updated
 
@@ -464,7 +464,7 @@ class ShopifyAPI:
         LOGGER.info(f"Fetched costs for {len(costs)} inventory items.")
         return costs
 
-    def _set_inventory_level(self, shopify_product: Dict, quantity: int, cost=None):
+    def set_inventory_level(self, shopify_product: Dict, quantity: int, cost=None):
         """
         Set inventory quantity and cost for a product's first variant.
         Uses the inventory_levels/set endpoint for quantity and
@@ -665,6 +665,56 @@ class ShopifyAPI:
 
         LOGGER.error(f"Unexpected fulfillment response for order {order_id}: {data}")
         return False
+
+    def mark_fulfillment_in_progress(self, order_id: int) -> bool:
+        """
+        Move fulfillment orders for an order to 'in_progress' status.
+        This signals that work has started but the order is not yet shipped/fulfilled.
+
+        Args:
+            order_id: Shopify order ID.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        self._rate_limit()
+        fo_url = f"{self.base_url}/orders/{order_id}/fulfillment_orders.json"
+        fo_response = self._request('GET', fo_url)
+
+        if fo_response is None:
+            LOGGER.error(f"Failed to fetch fulfillment orders for order {order_id}")
+            return False
+
+        self._log_rate_limit(fo_response)
+        fo_data = fo_response.json()
+        fulfillment_orders = fo_data.get('fulfillment_orders', [])
+
+        if not fulfillment_orders:
+            LOGGER.warning(f"No fulfillment orders found for order {order_id}")
+            return False
+
+        success = False
+        for fo in fulfillment_orders:
+            if fo.get('status') == 'open':
+                self._rate_limit()
+                url = f"{self.base_url}/fulfillment_orders/{fo['id']}/move_to_in_progress.json"
+                LOGGER.info(f"Moving fulfillment order {fo['id']} to in_progress for order {order_id}")
+                response = self._request('POST', url)
+
+                if response is None:
+                    LOGGER.error(f"Failed to move fulfillment order {fo['id']} to in_progress")
+                    continue
+
+                self._log_rate_limit(response)
+                data = response.json()
+
+                if 'errors' in data:
+                    LOGGER.error(f"Shopify error moving fulfillment order {fo['id']} to in_progress: {data['errors']}")
+                    continue
+
+                success = True
+
+        return success
 
     def cancel_order(self, order_id: int) -> bool:
         """

@@ -97,7 +97,7 @@ def run_wimood_sync(request_manager, wimood_api, shopify_api, scraper=None, scra
                 LOGGER.info(
                     f"  [{i}/{len(wimood_core_products)}] "
                     f"{p.get('sku', '')} — {p.get('title', '')} "
-                    f"(${p.get('price', '0.00')}, stock: {p.get('stock', '0')})"
+                    f"(€{p.get('price', '0.00')}, stock: {p.get('stock', '0')})"
                 )
 
     except Exception as e:

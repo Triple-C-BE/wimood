@@ -128,7 +128,7 @@ def sync_products(wimood_products: List[Dict], shopify_api, test_mode: bool = Fa
 
         LOGGER.info(
             f"[{idx}/{total}] SKU={sku} | {title} | "
-            f"Price={price} | Cost={cost} | Stock={stock} | "
+            f"Price=€{price} | Cost=€{cost} | Stock={stock} | "
             f"Images={has_images} | Desc={'yes' if has_desc else 'no'}"
         )
 
@@ -229,6 +229,12 @@ def _describe_changes(shopify_product: Dict, wimood_product: Dict) -> str:
         if wimood_cost != '0.00' and shopify_cost != wimood_cost:
             changes.append(f"cost changed: {shopify_cost} -> {wimood_cost}")
 
+    if variants:
+        shopify_stock = int(variants[0].get('inventory_quantity', 0))
+        wimood_stock = int(wimood_product.get('stock', 0))
+        if shopify_stock != wimood_stock:
+            changes.append(f"stock: {shopify_stock} -> {wimood_stock}")
+
     if shopify_product.get('status') != 'active':
         changes.append(f"status: {shopify_product.get('status')} -> active")
 
@@ -286,6 +292,15 @@ def _needs_update(shopify_product: Dict, wimood_product: Dict) -> bool:
     if wimood_body and not shopify_body.strip():
         LOGGER.debug(f"[{sku}] Shopify product missing description, enriched data available")
         return True
+
+    # Check stock
+    variants = shopify_product.get('variants', [])
+    if variants:
+        shopify_stock = int(variants[0].get('inventory_quantity', 0))
+        wimood_stock = int(wimood_product.get('stock', 0))
+        if shopify_stock != wimood_stock:
+            LOGGER.debug(f"[{sku}] Stock differs: Shopify={shopify_stock} vs Wimood={wimood_stock}")
+            return True
 
     # Check if enriched images are available but Shopify product has fewer
     wimood_images = wimood_product.get('local_images', wimood_product.get('images', []))
