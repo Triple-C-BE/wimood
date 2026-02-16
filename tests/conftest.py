@@ -80,7 +80,7 @@ def sample_env():
         'SHOPIFY_STORE_URL': 'https://test-store.myshopify.com',
         'SHOPIFY_ACCESS_TOKEN': 'shpat_test_token',
         'SHOPIFY_VENDOR_TAG': 'Wimood_Sync',
-        'SYNC_INTERVAL_SECONDS': 3600,
+        'PRODUCT_SYNC_INTERVAL_SECONDS': 3600,
         'MAX_SCRAPE_RETRIES': 5,
         'SCRAPE_DELAY_SECONDS': 0,  # No delay in tests
         'LOG_DIR': 'logs',

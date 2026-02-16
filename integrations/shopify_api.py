@@ -546,7 +546,7 @@ class ShopifyAPI:
             List of Shopify order dicts.
         """
         orders = []
-        url = f"{self.base_url}/orders.json?fulfillment_status=unfulfilled&status=any&limit=250"
+        url = f"{self.base_url}/orders.json?fulfillment_status=unfulfilled&status=open&limit=250"
 
         while url:
             self._rate_limit()
@@ -743,4 +743,70 @@ class ShopifyAPI:
             return False
 
         LOGGER.info(f"Order {order_id} cancelled in Shopify")
+        return True
+
+    def mark_order_delivered(self, order_id: int) -> bool:
+        """
+        Mark an order as delivered by creating a 'delivered' fulfillment event
+        on its fulfillment.
+
+        Args:
+            order_id: Shopify order ID.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        # Get fulfillments for this order
+        self._rate_limit()
+        url = f"{self.base_url}/orders/{order_id}/fulfillments.json"
+        response = self._request('GET', url)
+
+        if response is None:
+            LOGGER.error(f"Failed to fetch fulfillments for order {order_id}")
+            return False
+
+        self._log_rate_limit(response)
+        data = response.json()
+        fulfillments = data.get('fulfillments', [])
+
+        if not fulfillments:
+            LOGGER.warning(f"No fulfillments found for order {order_id}, cannot mark delivered")
+            return False
+
+        # Use the most recent fulfillment with status 'success'
+        fulfillment_id = None
+        for f in fulfillments:
+            if f.get('status') == 'success':
+                fulfillment_id = f['id']
+                break
+
+        if not fulfillment_id:
+            # Fall back to the first fulfillment
+            fulfillment_id = fulfillments[0]['id']
+
+        # Create a delivered fulfillment event
+        self._rate_limit()
+        event_url = f"{self.base_url}/orders/{order_id}/fulfillments/{fulfillment_id}/events.json"
+        payload = {
+            "event": {
+                "status": "delivered"
+            }
+        }
+
+        LOGGER.info(f"Marking order {order_id} as delivered (fulfillment {fulfillment_id})")
+        response = self._request('POST', event_url, json=payload)
+
+        if response is None:
+            LOGGER.error(f"Failed to create delivered event for order {order_id}")
+            return False
+
+        self._log_rate_limit(response)
+        data = response.json()
+
+        if 'errors' in data or 'error' in data:
+            LOGGER.error(f"Shopify error marking order {order_id} delivered: "
+                         f"{data.get('errors') or data.get('error')}")
+            return False
+
+        LOGGER.info(f"Order {order_id} marked as delivered in Shopify")
         return True

@@ -46,7 +46,7 @@ def load_env_variables():
                 'LOG_DIR': get_env_var('LOG_DIR', default='logs', var_type=str, required=False),
                 'LOG_LEVEL': get_env_var('LOG_LEVEL', default='INFO', required=False),
                 'LOG_TO_STDOUT': True,  # Always stdout — kept for backward compat
-                'SYNC_INTERVAL_SECONDS': get_env_var('SYNC_INTERVAL_SECONDS', default=3600, var_type=int, required=False),
+                'PRODUCT_SYNC_INTERVAL_SECONDS': get_env_var('PRODUCT_SYNC_INTERVAL_SECONDS', default=3600, var_type=int, required=False),
                 'MAX_SCRAPE_RETRIES': get_env_var('MAX_SCRAPE_RETRIES', default=5, var_type=int, required=False),
 
                 # --- Wimood API & Scraping ---
@@ -80,6 +80,10 @@ def load_env_variables():
                 'WIMOOD_ORDER_SHIPMENT': get_env_var('WIMOOD_ORDER_SHIPMENT', default='postnl', required=False),
                 'WIMOOD_ORDER_PAYMENT': get_env_var('WIMOOD_ORDER_PAYMENT', default='invoice', required=False),
                 'WIMOOD_ORDER_REMARK': get_env_var('WIMOOD_ORDER_REMARK', default='test', required=False),
+
+                # --- Startup Behavior ---
+                'PRODUCT_SYNC_ON_START': get_env_var('PRODUCT_SYNC_ON_START', default=True, var_type=bool, required=False),
+                'ORDER_SYNC_ON_START': get_env_var('ORDER_SYNC_ON_START', default=True, var_type=bool, required=False),
 
             }
             return env

@@ -13,7 +13,7 @@ A Python daemon that periodically fetches product data (SKU, title, price, stock
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the sync service (loops every SYNC_INTERVAL_SECONDS, default 3600)
+# Run the sync service (loops every PRODUCT_SYNC_INTERVAL_SECONDS, default 3600)
 python main.py
 
 # Run tests
@@ -51,7 +51,7 @@ Configured via `.env` file (loaded by python-dotenv). See `.env.example` for ful
 
 **Required:** `WIMOOD_API_KEY`, `WIMOOD_API_URL`, `WIMOOD_BASE_URL`, `WIMOOD_CUSTOMER_ID`, `SHOPIFY_STORE_URL`, `SHOPIFY_ACCESS_TOKEN`
 
-**Optional (with defaults):** `LOG_DIR` (logs), `LOG_LEVEL` (INFO), `LOG_TO_STDOUT` (true), `SYNC_INTERVAL_SECONDS` (3600), `MAX_SCRAPE_RETRIES` (5), `SHOPIFY_VENDOR_TAG` (Wimood_Sync), `SCRAPE_DELAY_SECONDS` (2), `ENABLE_MONITORING` (false), `MONITOR_PORT` (8080), `TEST_MODE` (false), `TEST_PRODUCT_LIMIT` (5)
+**Optional (with defaults):** `LOG_DIR` (logs), `LOG_LEVEL` (INFO), `LOG_TO_STDOUT` (true), `PRODUCT_SYNC_INTERVAL_SECONDS` (3600), `MAX_SCRAPE_RETRIES` (5), `SHOPIFY_VENDOR_TAG` (Wimood_Sync), `SCRAPE_DELAY_SECONDS` (2), `ENABLE_MONITORING` (false), `MONITOR_PORT` (8080), `TEST_MODE` (false), `TEST_PRODUCT_LIMIT` (5)
 
 ## Dependencies
 

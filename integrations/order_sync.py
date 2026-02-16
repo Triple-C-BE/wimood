@@ -263,11 +263,16 @@ def _poll_order(shopify_api, order_store, wimood_api, stored_order, results):
                 results['errors'] += 1
             return
 
-        # Delivered -> mark locally as done (stops polling)
+        # Delivered -> mark as delivered in Shopify and locally (stops polling)
         if wimood_status == 'delivered' and local_status != 'delivered':
-            order_store.update_fulfillment(order_id, 'delivered')
-            results['delivered'] += 1
-            LOGGER.info(f"  -> DELIVERED (stop polling)")
+            success = shopify_api.mark_order_delivered(order_id)
+            if success:
+                order_store.update_fulfillment(order_id, 'delivered')
+                results['delivered'] += 1
+                LOGGER.info(f"  -> DELIVERED in Shopify (stop polling)")
+            else:
+                LOGGER.error(f"  -> ERROR (failed to mark delivered in Shopify)")
+                results['errors'] += 1
             return
 
         # No action needed

@@ -26,11 +26,13 @@ except SystemExit as e:
 init_logging_config(ENV)
 LOGGER = get_main_logger()
 
-SYNC_INTERVAL = ENV.get('SYNC_INTERVAL_SECONDS', 3600)
+SYNC_INTERVAL = ENV.get('PRODUCT_SYNC_INTERVAL_SECONDS', 3600)
 TEST_MODE = ENV.get('TEST_MODE', False)
 TEST_PRODUCT_LIMIT = ENV.get('TEST_PRODUCT_LIMIT', 5)
 ENABLE_ORDER_SYNC = ENV.get('ENABLE_ORDER_SYNC', False)
 ORDER_SYNC_INTERVAL = ENV.get('ORDER_SYNC_INTERVAL_SECONDS', 900)
+PRODUCT_SYNC_ON_START = ENV.get('PRODUCT_SYNC_ON_START', True)
+ORDER_SYNC_ON_START = ENV.get('ORDER_SYNC_ON_START', True)
 
 
 def preflight_checks(wimood_api, shopify_api, scraper=None):
@@ -197,8 +199,12 @@ if __name__ == "__main__":
         monitor.start()
 
     # Dual-timer loop: track next run time for each sync independently
-    next_product_sync = 0  # Run immediately on first iteration
-    next_order_sync = 0 if ENABLE_ORDER_SYNC else float('inf')
+    now = time.time()
+    next_product_sync = 0 if PRODUCT_SYNC_ON_START else now + SYNC_INTERVAL
+    next_order_sync = (0 if ORDER_SYNC_ON_START else now + ORDER_SYNC_INTERVAL) if ENABLE_ORDER_SYNC else float('inf')
+
+    if not PRODUCT_SYNC_ON_START and (not ENABLE_ORDER_SYNC or not ORDER_SYNC_ON_START):
+        LOGGER.info(_format_next_timers(next_product_sync, next_order_sync))
 
     while True:
         now = time.time()

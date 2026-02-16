@@ -80,7 +80,7 @@ class TestLoadEnvVariables:
         env = load_env_variables()
         assert env['LOG_DIR'] == 'logs'
         assert env['LOG_LEVEL'] == 'INFO'
-        assert env['SYNC_INTERVAL_SECONDS'] == 3600
+        assert env['PRODUCT_SYNC_INTERVAL_SECONDS'] == 3600
         assert env['TEST_MODE'] is False
         assert env['SCRAPE_DELAY_SECONDS'] == 2
 

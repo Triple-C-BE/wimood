@@ -62,14 +62,18 @@ class OrderStore:
                 LOGGER.info(f"Migrated: added column '{col_name}' to orders table")
 
     def upsert_order(self, order: Dict):
-        """Insert or update an order."""
+        """Insert or update an order. Preserves terminal states (delivered/cancelled)."""
         with sqlite3.connect(self.db_file) as conn:
             conn.execute('''
                 INSERT INTO orders (shopify_order_id, order_number, fulfillment_status, created_at,
                                     tracking_number, tracking_url, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(shopify_order_id) DO UPDATE SET
-                    fulfillment_status = excluded.fulfillment_status,
+                    fulfillment_status = CASE
+                        WHEN orders.fulfillment_status IN ('delivered', 'cancelled')
+                        THEN orders.fulfillment_status
+                        ELSE excluded.fulfillment_status
+                    END,
                     tracking_number = excluded.tracking_number,
                     tracking_url = excluded.tracking_url,
                     updated_at = CURRENT_TIMESTAMP

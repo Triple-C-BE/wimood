@@ -107,9 +107,11 @@ def print_banner(env_config: dict):
     """Print a startup banner box with key configuration info."""
     test_mode = env_config.get('TEST_MODE', False)
     test_limit = env_config.get('TEST_PRODUCT_LIMIT', 5)
-    sync_interval = env_config.get('SYNC_INTERVAL_SECONDS', 3600)
+    sync_interval = env_config.get('PRODUCT_SYNC_INTERVAL_SECONDS', 3600)
     order_sync = env_config.get('ENABLE_ORDER_SYNC', False)
     order_interval = env_config.get('ORDER_SYNC_INTERVAL_SECONDS', 300)
+    product_on_start = env_config.get('PRODUCT_SYNC_ON_START', True)
+    order_on_start = env_config.get('ORDER_SYNC_ON_START', True)
     monitoring = env_config.get('ENABLE_MONITORING', False)
     monitor_port = env_config.get('MONITOR_PORT', 8080)
     store_url = env_config.get('SHOPIFY_STORE_URL', '?')
@@ -147,8 +149,8 @@ def print_banner(env_config: dict):
         f"{bold}{cyan}  Wimood → Shopify Sync Service{rst}",
         "",
         f"  {dim}Store{rst}      {bold}{store_url}{rst}",
-        f"  {dim}Products{rst}   every {bold}{fmt_interval(sync_interval)}{rst}",
-        f"  {dim}Orders{rst}     {yn(order_sync)}{f'  every {bold}{fmt_interval(order_interval)}{rst}' if order_sync else ''}",
+        f"  {dim}Products{rst}   every {bold}{fmt_interval(sync_interval)}{rst}{'  ' + dim + '(start: immediate)' + rst if product_on_start else '  ' + yellow + '(start: deferred)' + rst}",
+        f"  {dim}Orders{rst}     {yn(order_sync)}{f'  every {bold}{fmt_interval(order_interval)}{rst}' if order_sync else ''}{('  ' + dim + '(start: immediate)' + rst if order_on_start else '  ' + yellow + '(start: deferred)' + rst) if order_sync else ''}",
         f"  {dim}Monitor{rst}    {yn(monitoring)}{f'  port {bold}{monitor_port}{rst}' if monitoring else ''}",
         f"  {dim}Log level{rst}  {bold}{log_level}{rst}",
     ]
