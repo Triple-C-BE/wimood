@@ -85,23 +85,6 @@ class ConsoleFormatter(logging.Formatter):
         )
 
 
-class PlainFormatter(logging.Formatter):
-    """Plain formatter for non-TTY output (piped logs, Docker log drivers)."""
-
-    PLAIN_ICONS = {
-        'DEBUG': '.',
-        'INFO': '|',
-        'WARNING': '!',
-        'ERROR': 'x',
-        'CRITICAL': 'X',
-    }
-
-    def format(self, record):
-        ts = self.formatTime(record, '%H:%M:%S')
-        icon = self.PLAIN_ICONS.get(record.levelname, ' ')
-        label = LOGGER_STYLES.get(record.name, (None, None, record.name))[2]
-        return f"{ts} {icon} {label:<8} {record.getMessage()}"
-
 
 def print_banner(env_config: dict):
     """Print a startup banner box with key configuration info."""
@@ -116,18 +99,12 @@ def print_banner(env_config: dict):
     monitor_port = env_config.get('MONITOR_PORT', 8080)
     store_url = env_config.get('SHOPIFY_STORE_URL', '?')
     log_level = env_config.get('LOG_LEVEL', 'INFO')
-
-    is_tty = sys.stdout.isatty()
-
-    if is_tty:
-        dim = C.DIM
-        rst = C.RST
-        bold = C.BOLD
-        cyan = C.BCYAN
-        green = C.BGREEN
-        yellow = C.BYELLOW
-    else:
-        dim = rst = bold = cyan = green = yellow = ''
+    dim = C.DIM
+    rst = C.RST
+    bold = C.BOLD
+    cyan = C.BCYAN
+    green = C.BGREEN
+    yellow = C.BYELLOW
 
     def yn(val):
         if val:
@@ -163,7 +140,7 @@ def print_banner(env_config: dict):
     max_w = max(len(ansi_re.sub('', line)) for line in lines)
     box_w = max_w + 2  # padding
 
-    border_color = cyan if is_tty else ''
+    border_color = cyan
     top = f"{border_color}\u250c{'─' * box_w}\u2510{rst}"
     bot = f"{border_color}\u2514{'─' * box_w}\u2518{rst}"
     sep = f"{border_color}\u2502{rst}"
@@ -179,7 +156,6 @@ def print_banner(env_config: dict):
 def init_logging_config(env_config: dict):
     """Initialize logging — stdout only, with colors when running in a terminal."""
     log_level = env_config.get("LOG_LEVEL", "INFO").upper()
-
     root_logger = logging.getLogger()
     resolved_level = resolve_log_level(log_level)
     root_logger.setLevel(resolved_level)
@@ -190,12 +166,7 @@ def init_logging_config(env_config: dict):
     # Avoid duplicate handlers on re-init
     if not root_logger.hasHandlers():
         handler = logging.StreamHandler(sys.stdout)
-
-        if sys.stdout.isatty():
-            handler.setFormatter(ConsoleFormatter())
-        else:
-            handler.setFormatter(PlainFormatter())
-
+        handler.setFormatter(ConsoleFormatter())
         root_logger.addHandler(handler)
 
     # Print the startup banner
