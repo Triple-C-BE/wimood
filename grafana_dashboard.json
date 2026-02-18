@@ -1,0 +1,539 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_ZABBIX",
+      "label": "Zabbix",
+      "type": "datasource",
+      "pluginId": "alexanderzobnin-zabbix-datasource"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Overview",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "1": { "color": "green", "index": 0, "text": "UP" } }, "type": "value" },
+            { "options": { "0": { "color": "red", "index": 1, "text": "DOWN" } }, "type": "value" }
+          ],
+          "noValue": "UNKNOWN",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["last"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "Service Health",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Health check" },
+          "options": { "showDisabledItems": false }
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "ok": { "color": "green", "index": 0, "text": "OK" } }, "type": "value" },
+            { "options": { "starting": { "color": "yellow", "index": 1, "text": "STARTING" } }, "type": "value" },
+            { "options": { "error": { "color": "red", "index": 2, "text": "ERROR" } }, "type": "value" }
+          ],
+          "noValue": "NO DATA",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "gray", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "Sync Status",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Overall status" },
+          "options": { "showDisabledItems": false }
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "NO DATA",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "Uptime",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Uptime" },
+          "options": { "showDisabledItems": false }
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "ok": { "color": "green", "index": 0, "text": "OK" } }, "type": "value" },
+            { "options": { "waiting": { "color": "blue", "index": 1, "text": "WAITING" } }, "type": "value" },
+            { "options": { "running": { "color": "yellow", "index": 2, "text": "RUNNING" } }, "type": "value" },
+            { "options": { "error": { "color": "red", "index": 3, "text": "ERROR" } }, "type": "value" }
+          ],
+          "noValue": "NO DATA",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "gray", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "Product Sync Status",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Product sync status" },
+          "options": { "showDisabledItems": false }
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "ok": { "color": "green", "index": 0, "text": "OK" } }, "type": "value" },
+            { "options": { "waiting": { "color": "blue", "index": 1, "text": "WAITING" } }, "type": "value" },
+            { "options": { "disabled": { "color": "gray", "index": 2, "text": "DISABLED" } }, "type": "value" },
+            { "options": { "error": { "color": "red", "index": 3, "text": "ERROR" } }, "type": "value" }
+          ],
+          "noValue": "NO DATA",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "gray", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "Order Sync Status",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Order sync status" },
+          "options": { "showDisabledItems": false }
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "1": { "color": "green", "index": 0, "text": "UP" } }, "type": "value" },
+            { "options": { "0": { "color": "red", "index": 1, "text": "DOWN" } }, "type": "value" }
+          ],
+          "noValue": "UNKNOWN",
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "axisCenteredZero": false,
+            "drawStyle": "line",
+            "fillOpacity": 30,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": {
+        "legend": { "displayMode": "hidden" },
+        "tooltip": { "mode": "single" }
+      },
+      "title": "Health History",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Health check" },
+          "options": { "showDisabledItems": false }
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Product Sync",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "",
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "stacking": { "group": "A", "mode": "normal" }
+          },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Wimood: Products created" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Wimood: Products updated" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Wimood: Products deactivated" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Wimood: Products skipped" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "gray", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Wimood: Product sync errors" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 6 },
+      "id": 10,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "sum"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "title": "Product Sync Results",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Products created" },
+          "options": { "showDisabledItems": false }
+        },
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Products updated" },
+          "options": { "showDisabledItems": false }
+        },
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Products deactivated" },
+          "options": { "showDisabledItems": false }
+        },
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Products skipped" },
+          "options": { "showDisabledItems": false }
+        },
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Product sync errors" },
+          "options": { "showDisabledItems": false }
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "s",
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "Duration",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "scheme",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto"
+          },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "id": 11,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "max", "mean"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "title": "Product Sync Duration",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Product sync duration" },
+          "options": { "showDisabledItems": false }
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 102,
+      "title": "Order Sync",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "",
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "stacking": { "group": "A", "mode": "normal" }
+          },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Wimood: New orders" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Wimood: Orders submitted" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Wimood: Orders fulfilled" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Wimood: Orders poll checked" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "gray", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Wimood: Order sync errors" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 15 },
+      "id": 20,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "sum"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "title": "Order Sync Results",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: New orders" },
+          "options": { "showDisabledItems": false }
+        },
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Orders submitted" },
+          "options": { "showDisabledItems": false }
+        },
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Orders fulfilled" },
+          "options": { "showDisabledItems": false }
+        },
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Orders poll checked" },
+          "options": { "showDisabledItems": false }
+        },
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Order sync errors" },
+          "options": { "showDisabledItems": false }
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "s",
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "Duration",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "scheme",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto"
+          },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 15 },
+      "id": 21,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "max", "mean"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "title": "Order Sync Duration",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "alexanderzobnin-zabbix-datasource", "uid": "${DS_ZABBIX}" },
+          "group": { "filter": "/.*/"},
+          "host": { "filter": "wimood-syncer" },
+          "application": { "filter": "" },
+          "item": { "filter": "Wimood: Order sync duration" },
+          "options": { "showDisabledItems": false }
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 37,
+  "style": "dark",
+  "tags": ["wimood", "shopify", "sync"],
+  "templating": {
+    "list": []
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Wimood Syncer",
+  "uid": "wimood-syncer",
+  "version": 2
+}

@@ -2,7 +2,7 @@ import json
 import threading
 import time
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .logger import get_logger
 
@@ -49,28 +49,33 @@ class MonitorServer:
         parent = self
 
         class Handler(BaseHTTPRequestHandler):
+            timeout = 5
+
             def do_GET(self):
-                if self.path in ("/", "/status"):
-                    body = json.dumps(parent._build_response(), indent=2).encode()
-                    self.send_response(200)
-                elif self.path == "/health":
-                    with parent._lock:
-                        healthy = parent._state["status"] != "starting"
-                    body = json.dumps({"healthy": healthy}).encode()
-                    self.send_response(200 if healthy else 503)
-                else:
-                    self.send_error(404)
-                    return
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
+                try:
+                    if self.path in ("/", "/status"):
+                        body = json.dumps(parent._build_response(), indent=2).encode()
+                        self.send_response(200)
+                    elif self.path == "/health":
+                        with parent._lock:
+                            healthy = parent._state["status"] != "starting"
+                        body = json.dumps({"healthy": healthy}).encode()
+                        self.send_response(200 if healthy else 503)
+                    else:
+                        self.send_error(404)
+                        return
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                except BrokenPipeError:
+                    pass
 
             def log_message(self, format, *args):
                 pass
 
         try:
-            self._server = HTTPServer(("0.0.0.0", self._port), Handler)
+            self._server = ThreadingHTTPServer(("0.0.0.0", self._port), Handler)
         except OSError as e:
             logger.error(f"Failed to start monitor server on port {self._port}: {e}")
             return

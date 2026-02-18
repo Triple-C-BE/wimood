@@ -1,0 +1,385 @@
+zabbix_export:
+  version: '6.0'
+  templates:
+    - uuid: 7bb2bf2047d64fbb8c5f9658a8882b1b
+      template: 'Wimood Syncer'
+      name: 'Wimood Syncer'
+      description: 'Monitors the Wimood-to-Shopify sync service via its /status and /health HTTP endpoints.'
+      groups:
+        - name: 'Templates/Applications'
+      macros:
+        - macro: '{$WIMOOD.PORT}'
+          value: '8080'
+          description: 'Monitor endpoint port'
+        - macro: '{$WIMOOD.SCHEME}'
+          value: 'http'
+          description: 'HTTP or HTTPS'
+
+      items:
+        # ── Master item: fetch full JSON ──
+        - uuid: 71d1d6707ac245fb9cee3583a0b3a8c1
+          name: 'Wimood: Get status'
+          type: HTTP_AGENT
+          key: wimood.status.json
+          url: '{$WIMOOD.SCHEME}://{HOST.CONN}:{$WIMOOD.PORT}/status'
+          history: 0d
+          trends: 0d
+          value_type: TEXT
+          timeout: 10s
+
+        # ── Health check (Simple check — always returns 0 or 1, never goes unsupported) ──
+        - uuid: 0bbfcbb3362a4c1c9856eb0fdd804e45
+          name: 'Wimood: Health check'
+          type: SIMPLE
+          key: 'net.tcp.service[http,,{$WIMOOD.PORT}]'
+          delay: 1m
+          history: 7d
+          trends: 90d
+          value_type: UNSIGNED
+          triggers:
+            - uuid: 4052a4345ab541adb0af5cefe4acb95a
+              expression: 'last(/Wimood Syncer/net.tcp.service[http,,{$WIMOOD.PORT}])=0'
+              name: 'Wimood: Service unreachable'
+              priority: DISASTER
+              description: 'The monitor endpoint on port {$WIMOOD.PORT} is not responding. The service is likely down.'
+
+        # ── Top-level fields ──
+        - uuid: 9792a7a33a0a4aeabe5ee41614b9932d
+          name: 'Wimood: Overall status'
+          type: DEPENDENT
+          key: wimood.status
+          master_item:
+            key: wimood.status.json
+          history: 7d
+          trends: 0d
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.status'
+          triggers:
+            - uuid: 1c863589722747e89d90d0aefd267e43
+              expression: 'last(/Wimood Syncer/wimood.status)="error"'
+              name: 'Wimood: Service in error state'
+              priority: HIGH
+              description: 'The overall service status is "error", meaning the last product or order sync encountered errors.'
+            - uuid: 9dc430e8e06741f985b6fd9a21e4acbb
+              expression: 'nodata(/Wimood Syncer/wimood.status,600)=1'
+              name: 'Wimood: No data received for 10 minutes'
+              priority: HIGH
+              description: 'No monitoring data has been received from the Wimood syncer for 10 minutes. The service may be unreachable.'
+
+        - uuid: a1cfceb54c5e4c65822a11fa9977d30a
+          name: 'Wimood: Uptime'
+          type: DEPENDENT
+          key: wimood.uptime
+          master_item:
+            key: wimood.status.json
+          history: 7d
+          trends: 365d
+          value_type: FLOAT
+          units: s
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.uptime_seconds'
+
+        # ── Product sync ──
+        - uuid: 40ae2665e889433a8c135434922a93f2
+          name: 'Wimood: Product sync status'
+          type: DEPENDENT
+          key: wimood.product.status
+          master_item:
+            key: wimood.status.json
+          history: 7d
+          trends: 0d
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.product_sync.status'
+          triggers:
+            - uuid: 50d84580e5d84d7faa9b06846d2d318d
+              expression: 'last(/Wimood Syncer/wimood.product.status)="error"'
+              name: 'Wimood: Product sync errors'
+              priority: WARNING
+              description: 'The last product sync completed with errors.'
+
+        - uuid: 91bc8514109d4818a61290b41e1760e1
+          name: 'Wimood: Product sync last run'
+          type: DEPENDENT
+          key: wimood.product.last_sync
+          master_item:
+            key: wimood.status.json
+          history: 7d
+          trends: 0d
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.product_sync.last_sync'
+
+        - uuid: fe3fa1b184d049799ae2c7ee8e28db29
+          name: 'Wimood: Product sync duration'
+          type: DEPENDENT
+          key: wimood.product.duration
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: FLOAT
+          units: s
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.product_sync.last_sync_duration_seconds'
+
+        - uuid: e906694dbb0c431b94beed941355a308
+          name: 'Wimood: Product sync next in'
+          type: DEPENDENT
+          key: wimood.product.next_sync_in
+          master_item:
+            key: wimood.status.json
+          history: 7d
+          trends: 0d
+          value_type: FLOAT
+          units: s
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.product_sync.next_sync_in_seconds'
+
+        - uuid: c4ec1126515740e0af74777af44a9aae
+          name: 'Wimood: Products created'
+          type: DEPENDENT
+          key: wimood.product.created
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.product_sync.last_sync_results.created'
+
+        - uuid: e78d2326effe4410a37a18d229c14ed4
+          name: 'Wimood: Products updated'
+          type: DEPENDENT
+          key: wimood.product.updated
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.product_sync.last_sync_results.updated'
+
+        - uuid: 5490bb9e17a24a1f808c1aa214e655a2
+          name: 'Wimood: Products deactivated'
+          type: DEPENDENT
+          key: wimood.product.deactivated
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.product_sync.last_sync_results.deactivated'
+
+        - uuid: b6da5b8c21184fea85d2a38b2505aeb0
+          name: 'Wimood: Products skipped'
+          type: DEPENDENT
+          key: wimood.product.skipped
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.product_sync.last_sync_results.skipped'
+
+        - uuid: a2af7a88d0c44f0c914453b819b08e4c
+          name: 'Wimood: Product sync errors'
+          type: DEPENDENT
+          key: wimood.product.errors
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.product_sync.last_sync_results.errors'
+          triggers:
+            - uuid: 740ec21a18424ee1b8c4535a3746ed80
+              expression: 'last(/Wimood Syncer/wimood.product.errors)>0'
+              name: 'Wimood: Product sync had {ITEM.LASTVALUE} errors'
+              priority: WARNING
+              description: 'The last product sync reported one or more errors.'
+
+        # ── Order sync ──
+        - uuid: 94cc6bb720c54d5e881e01f55ae217a3
+          name: 'Wimood: Order sync status'
+          type: DEPENDENT
+          key: wimood.order.status
+          master_item:
+            key: wimood.status.json
+          history: 7d
+          trends: 0d
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.order_sync.status'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: 'disabled'
+          triggers:
+            - uuid: a7e5096fc6744c4187eda2bf5eaebc45
+              expression: 'last(/Wimood Syncer/wimood.order.status)="error"'
+              name: 'Wimood: Order sync errors'
+              priority: WARNING
+              description: 'The last order sync completed with errors.'
+
+        - uuid: d5f641b42dd84741b0dc854ef6a9d8e9
+          name: 'Wimood: Order sync last run'
+          type: DEPENDENT
+          key: wimood.order.last_sync
+          master_item:
+            key: wimood.status.json
+          history: 7d
+          trends: 0d
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.order_sync.last_sync'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: 'disabled'
+
+        - uuid: 09f169d32ff64e4c8a9a1ad2a2b7cf52
+          name: 'Wimood: Order sync duration'
+          type: DEPENDENT
+          key: wimood.order.duration
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: FLOAT
+          units: s
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.order_sync.last_sync_duration_seconds'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+
+        - uuid: 9ef2d4a0c5e6451f8dd175b78730e033
+          name: 'Wimood: Order sync next in'
+          type: DEPENDENT
+          key: wimood.order.next_sync_in
+          master_item:
+            key: wimood.status.json
+          history: 7d
+          trends: 0d
+          value_type: FLOAT
+          units: s
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.order_sync.next_sync_in_seconds'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+
+        - uuid: 21d826588fd5417cbc97de01ec907852
+          name: 'Wimood: New orders'
+          type: DEPENDENT
+          key: wimood.order.new_orders
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.order_sync.last_sync_results.new_orders'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+
+        - uuid: b9ce375f1f5843689ec7f4823732e5a6
+          name: 'Wimood: Orders submitted'
+          type: DEPENDENT
+          key: wimood.order.submitted
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.order_sync.last_sync_results.submitted'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+
+        - uuid: 8b1c99629dc3417f9e8a943e0a9bd714
+          name: 'Wimood: Orders fulfilled'
+          type: DEPENDENT
+          key: wimood.order.fulfilled
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.order_sync.last_sync_results.fulfilled'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+
+        - uuid: c5eefb2bd74e4f809c880149192dd60e
+          name: 'Wimood: Orders poll checked'
+          type: DEPENDENT
+          key: wimood.order.poll_checked
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.order_sync.last_sync_results.poll_checked'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+
+        - uuid: 2c673b3f55354acc8a8ac3a9565b9848
+          name: 'Wimood: Order sync errors'
+          type: DEPENDENT
+          key: wimood.order.errors
+          master_item:
+            key: wimood.status.json
+          history: 30d
+          trends: 365d
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.order_sync.last_sync_results.errors'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+          triggers:
+            - uuid: 4052a4345ab541adb0af5cefe4acb95b
+              expression: 'last(/Wimood Syncer/wimood.order.errors)>0'
+              name: 'Wimood: Order sync had {ITEM.LASTVALUE} errors'
+              priority: WARNING
+              description: 'The last order sync reported one or more errors.'
