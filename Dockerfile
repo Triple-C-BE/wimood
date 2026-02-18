@@ -17,5 +17,8 @@ RUN mkdir data
 VOLUME /app/data
 
 ENV PYTHONUNBUFFERED=1
+ENV TERM=xterm-256color
+
+EXPOSE 8080
 
 CMD ["python", "main.py"]

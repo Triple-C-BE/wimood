@@ -1,0 +1,17 @@
+services:
+  wimood-syncer:
+    build: .
+    tty: true
+    env_file: .env
+    volumes:
+      - wimood-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  wimood-data:

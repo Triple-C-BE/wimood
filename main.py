@@ -197,11 +197,17 @@ if __name__ == "__main__":
     if ENV.get('ENABLE_MONITORING', False):
         monitor = MonitorServer(port=ENV.get('MONITOR_PORT', 8080))
         monitor.start()
+        monitor.set_ready()
 
     # Dual-timer loop: track next run time for each sync independently
     now = time.time()
     next_product_sync = 0 if PRODUCT_SYNC_ON_START else now + SYNC_INTERVAL
     next_order_sync = (0 if ORDER_SYNC_ON_START else now + ORDER_SYNC_INTERVAL) if ENABLE_ORDER_SYNC else float('inf')
+
+    if monitor and not PRODUCT_SYNC_ON_START:
+        monitor.set_product_waiting(SYNC_INTERVAL)
+    if monitor and ENABLE_ORDER_SYNC and not ORDER_SYNC_ON_START:
+        monitor.set_order_waiting(ORDER_SYNC_INTERVAL)
 
     if not PRODUCT_SYNC_ON_START and (not ENABLE_ORDER_SYNC or not ORDER_SYNC_ON_START):
         LOGGER.info(_format_next_timers(next_product_sync, next_order_sync))
